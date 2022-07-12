@@ -1,10 +1,11 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '1';
-muscle = 'RAX';
+moth = '3';
+muscle = 'RDLM';
+knn = 4;
 noise = (0:.05:6);
 repeats = 150;
-n = 10; % How many different levels of rescaling to use
+n = 5; % How many different levels of rescaling to use
 
 %---- Load data
 load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
@@ -12,6 +13,7 @@ load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
 X = time_data.([muscle,'strokes']);
 Y = Tz_WSd;
 Nspike = sum(~isnan(X), 2);
+unq = unique(Nspike);
 
 % %---- Fake data: Totally uncorrelated
 % % Same resolution, range, and # of spikes as real data, but uniformly distributed
@@ -35,17 +37,17 @@ for i = 1:n
     len_subsample = round(data_fraction(i) * length(Y));
     subsample = randperm(length(Y), len_subsample);
     fake_X{i} = X(subsample,:);
-    MI_direct{i} = KSG_precision(fake_X{i}, Y(subsample,:), 4, 20, noise);
+    MI_direct{i} = KSG_precision(fake_X{i}, Y(subsample,:), knn, 50, noise);
 end
 
 
 %---- Run precision estimation on real and fake data and plot each
-MI_real = KSG_precision(X, Y, 4, repeats, noise, true);
+MI_real = KSG_precision(X, Y, knn, repeats, noise, true);
 title('Real data')
-% MI_uncorr = KSG_precision(fake_uncorr, Y, 4, repeats, noise, true);
+% MI_uncorr = KSG_precision(fake_uncorr, Y, knn, repeats, noise, true);
 % title('Uncorrelated fake data')
 
-%---- Deterministically linked fake data at different levels of noise corruption
+%---- Deterministically linked fake data at different sample sizes
 figure()
 hold on
 cols = copper(n);
@@ -55,7 +57,7 @@ for i = 1:n
 %     rescale = 1;
     plot(log10(noise), rescale * mean(MI_direct{i}, 2), 'color', cols(i,:));
 end
-title('motor PCs directly to spike times with varying m')
+title('motor PCs directly to spike times with varying sample size')
 xlabel('log10( noise added / signal range )')
 ylabel('normalized information (1 at zero noise added)')
 colormap(copper)
@@ -63,30 +65,82 @@ cbh = colorbar;
 set(cbh,'YTick',linspace(0,1,n))
 set(cbh,'YTickLabel', num2str(data_fraction.'))
 
+
+
 %% Distribution of kth nearest neighbor distances as noise is added
+% Levels of noise to check
 ncheck = 5;
-figure
-hold on
-xlims = zeros(ncheck, 2);
-ax = gobjects(ncheck, 1);
-noiseinds = round(linspace(1,ncheck,ncheck)/ncheck*length(noise));
-for ii = 1:ncheck
-    noiseamp = noise(noiseinds(ii));
-    noise_X = X(:,1) + noiseamp * rand(length(X), 1);
-    kdist = zeros(length(X),1);
-    for i = 1:length(X)
-        dist = mink(noise_X(i,1) - noise_X(:,1), 4);
-        kdist(i) = abs(dist(1));
+% Loop over number of spikes in a wingbeat
+for jj = unq(unq~=0)'
+    useX = X(Nspike==jj, 1:jj);
+    useY = Y(Nspike==jj, :);
+    % Continue only if enough wingbeats with this many spikes
+    if size(useX, 1) >= knn
+        % Preallocate, setup figure
+        figure
+        hold on
+        xlims = zeros(ncheck, 2);
+        ax = gobjects(ncheck, 1);
+        noiseinds = linspace(1, length(noise), ncheck);
+        % Loop over noise levels
+        for ii = 1:ncheck
+            noiseamp = noise(noiseinds(ii));
+            noiseX = useX(:,jj) + noiseamp * rand(length(useX), 1);
+            kdist = zeros(length(useX),1);
+            % Loop over each point in X, get knn distances
+            for i = 1:length(useX)
+                % Get indices of kth nearest neighbors, correct indices (X and Y)
+                [idx, distx] = knnsearch(noiseX([1:(i-1), (i+1):end], :), noiseX(i,:), 'K', knn);
+                idx(idx>i) = idx(idx>i) + 1;
+                [idy, disty] = knnsearch(useY([1:(i-1), (i+1):end], :), useY(i,:), 'K', knn);
+                idy(idy>i) = idy(idy>i) + 1;
+                % Select max distance
+                kdist(i) = max(distx(knn), disty(knn));
+            end
+            % Make plot
+            ax(ii) = subaxis(ncheck, 1 , ii, 'SpacingVert', 0);
+            histogram(log10(kdist), 40, 'Normalization', 'pdf', 'EdgeColor', 'none')
+            xline(median(kdist, 'omitnan'), 'k')
+            xticklabels(num2cell(10.^get(gca,'XTick')));
+            text(0.6, 0.5, ['r = ', num2str(noiseamp)], 'units', 'normalized')
+            xlims(ii,:) = get(gca, 'Xlim');
+        end
+        % Link axes so X axis is shared
+        linkaxes(ax)
+        xlabel(ax(end), ...
+            ['k=',num2str(knn),'$^{th}$ N.N. distance in space $\|z-z`\| = max\{\|x-x`\|, \|y-y`\|\}$'], ...
+            "interpreter", "latex")
+        ylabel(ax(round(length(ax)/2)), 'Probability')
+        title(ax(1), [num2str(jj), ' spikes in wingbeat'])
     end
-    ax(ii) = subaxis(ncheck, 1 , ii, 'SpacingVert', 0);
-    histogram(kdist, 40, 'Normalization', 'pdf', 'EdgeColor', 'none')
-    xline(median(kdist, 'omitnan'), 'k')
-    text(0.6, 0.5, ['r = ', num2str(noiseamp)], 'units', 'normalized')
-    xlims(ii,:) = get(gca, 'Xlim');
 end
-% Link axes so X axis is shared
-linkaxes(ax)
-xlabel(ax(end), 'abs() of k=4th nearest neighbor distances')
-ylabel(ax(round(length(ax)/2)), 'Probability')
 
 
+%% How MI and precision improve with transformations
+% From Kraskov, replacing data with rank (index of order in total dataset)
+% can improve estimations, as MI should be invariant but transform gives
+% uniform density
+% Also from Kraskov, transforms can be a good idea in cases where
+% distributions are skewed, non-symmetric, or rough. log transform should
+% lead to symmetric, normal knn distances (as seen above, where distance
+% distribution is lognormal)
+[~,~,I] = unique(X + 1e-8 * rand(size(X)));
+
+ranknoise = noise / range(X) * range(I);
+lognoise = noise / range(X) * range(log(X - min(X) + 0.1));
+% MI_rank = KSG_precision(I, Y, knn, repeats, ranknoise, true);
+% MI_log = KSG_precision(log(X - min(X) + 0.1), log(Y - min(Y) + 0.1), knn, repeats, lognoise, true);
+
+figure
+mseb(log10(noise/range(X)), mean(MI_real,2), std(MI_real,0,2)', struct('col',{{'b'}}))
+mseb(log10(ranknoise/range(I)), mean(MI_rank,2), std(MI_rank,0,2)', struct('col',{{'r'}}))
+mseb(log10(lognoise/range(log(X-min(X)+0.1))), mean(MI_log,2), std(MI_log,0,2)', struct('col',{{'g'}}))
+xlabel('log10(noise amplitude / signal amplitude)')
+ylabel('Mutual Information (bits)')
+
+mean_MI_real = mean(MI_real, 2);
+mean_MI_rank = mean(MI_rank, 2);
+mean_MI_log = mean(MI_log, 2);
+real_p = noise(find(mean_MI_real < (mean_MI_real(1) - std(MI_real(1,:))), 1))
+rank_p = ranknoise(find(mean_MI_rank < (mean_MI_rank(1) - std(MI_rank(1,:))), 1)) / range(I) * range(X)
+log_p = lognoise(find(mean_MI_log < (mean_MI_log(1) - std(MI_log(1,:))), 1)) / range(log(X - min(X) + 0.1)) * range(X)
