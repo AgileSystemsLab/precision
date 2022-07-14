@@ -1,5 +1,5 @@
 % KSG Mutual Information Estimation of Precision via Uniform Noise Corruption
-function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
+function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel, dolog)
     arguments
         X (:,:) double                  % X - array of spike times, each row is a wingbeat
         Y (:,:) double                  % Y - array of ouput variables, likely PC1,PC2 of yaw torque. Each row is a wb
@@ -8,6 +8,7 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
         noise (1,121) double = (0:.05:6)% noise - uniform noise levels to apply to spike times
         doplot (1,1) logical = false    % whether or not to make a plot
         runparallel (1,1) logical = true% Whether or not to parallelize running over noise levels
+        dolog (1,1) logical = false
     end
     tic
     % If KSG tools not on path, add to path 
@@ -26,8 +27,7 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
     probsmap = containers.Map(unq, probs);
     % Preallocate
     MI = zeros(length(noise), repeats);
-    % Parallel version
-    if runparallel
+    if dolog
         if isempty(gcp('nocreate'))
             parpool();
         end
@@ -42,7 +42,9 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
                     inds = Nspike == k;
                     % Call mutual information estimator
                     if sum(inds) > k && knn < sum(inds)
-                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
+                        mi = MIxnyn_matlab(...
+                            log(X(inds, 1:k) + noise(i)*rand(sum(inds), k) - min(X(inds,1:k)) + 0.1), ...
+                            log(Y(inds,:) - min(Y(inds,:)) + 0.1), knn, pwd);
                     else
                         mi = 0;
                     end
@@ -51,25 +53,51 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
                 end
             end
         end
-    % Serial version
     else
-        % Loop over noise levels
-        for i = 1:length(noise)
-            % Loop over repeats
-            for j = 1:repeats
-                % Loop over number of spikes in wb
-                % Skip 0 spike group, because 0 spikes means no information
-                for k = unq(unq~=0)'
-                    % Get indices of data with this many spikes
-                    inds = Nspike == k;
-                    % Call mutual information estimator
-                    if sum(inds) > k && knn < sum(inds)
-                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
-                    else
-                        mi = 0;
+        if runparallel
+            if isempty(gcp('nocreate'))
+                parpool();
+            end
+            % Loop over noise levels
+            parfor i = 1:length(noise)
+                % Loop over repeats
+                for j = 1:repeats
+                    % Loop over number of spikes in wb
+                    % Skip 0 spike group, because 0 spikes means no information
+                    for k = unq(unq~=0)'
+                        % Get indices of data with this many spikes
+                        inds = Nspike == k;
+                        % Call mutual information estimator
+                        if sum(inds) > k && knn < sum(inds)
+                            mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
+                        else
+                            mi = 0;
+                        end
+                        % Adjust based on probability of this many spikes
+                        MI(i,j) = MI(i,j) + mi * probsmap(k);
                     end
-                    % Adjust based on probability of this many spikes
-                    MI(i,j) = MI(i,j) + mi * probsmap(k);
+                end
+            end
+        % Serial version
+        else
+            % Loop over noise levels
+            for i = 1:length(noise)
+                % Loop over repeats
+                for j = 1:repeats
+                    % Loop over number of spikes in wb
+                    % Skip 0 spike group, because 0 spikes means no information
+                    for k = unq(unq~=0)'
+                        % Get indices of data with this many spikes
+                        inds = Nspike == k;
+                        % Call mutual information estimator
+                        if sum(inds) > k && knn < sum(inds)
+                            mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
+                        else
+                            mi = 0;
+                        end
+                        % Adjust based on probability of this many spikes
+                        MI(i,j) = MI(i,j) + mi * probsmap(k);
+                    end
                 end
             end
         end
