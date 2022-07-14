@@ -5,7 +5,7 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
         Y (:,:) double                  % Y - array of ouput variables, likely PC1,PC2 of yaw torque. Each row is a wb
         knn (1,1) double = 4            % knn - number of nearest neighbors
         repeats (1,1) double = 150      % repeats - How many times to repeat MI estimator
-        noise (1,121) double = (0:.05:6)% noise - uniform noise levels to apply to spike times
+        noise (1,:) double = (0:.05:6)  % noise - uniform noise levels to apply to spike times
         doplot (1,1) logical = false    % whether or not to make a plot
         runparallel (1,1) logical = true% Whether or not to parallelize running over noise levels
     end
