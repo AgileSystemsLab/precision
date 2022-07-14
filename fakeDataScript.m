@@ -1,11 +1,11 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '2';
-muscle = 'RDLM';
+moth = '3';
+muscle = 'LDVM';
 knn = 4;
 noise = (0:.05:6);
 repeats = 150;
-n = 3; % How many different levels of rescaling to use
+n = 6; % How many different levels of rescaling to use
 
 %---- Load data
 load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
@@ -14,6 +14,10 @@ X = time_data.([muscle,'strokes']);
 Y = Tz_WSd;
 Nspike = sum(~isnan(X), 2);
 unq = unique(Nspike);
+
+%---- Run precision estimation on real data
+% MI_real = KSG_precision(X, Y, knn, repeats, noise, true);
+% title(['Real data, moth ', moth, ', ', muscle])
 
 % %---- Fake data: Totally uncorrelated
 % % Same resolution, range, and # of spikes as real data, but uniformly distributed
@@ -25,27 +29,40 @@ unq = unique(Nspike);
 % end
 % fake_uncorr = fake_uncorr / 10;
 
-% %---- Direct connected fake data ahead-of-time corrupted to specific noise levels
-% % Setup parameters and preallocate
-% pre_noise = linspace(0, 6, n);
-% MI_direct = cell(1,n);
-% MI_direct(:) = {zeros(length(noise), repeats)};
-% fake_X = nan(size(X));
-% figure()
-% cols = copper(n);
-% % Loop over noise levels, create fake data, run precision estimation
-% for i = 1:n
-%     fake_X = X + pre_noise(i) * rand(size(X));
-%     MI_direct{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
-%     mseb()
-% end
+%---- Direct connected fake data ahead-of-time corrupted to specific noise levels
+prenoise = linspace(0, 6, 5);
+n = 5;
+% fakeY = normrnd(0, 1, 3000, 2);
+% fakeX = fakeY * range(X,'all') / range(fakeY, 'all');
+[MI_prenoise, precision, precision_ind] = precorruption_analysis(X, Y, 4, n, prenoise, noise, 150);
 
+%%
+% Precision curves
+figure
+hold on
+cols = copper(n);
+for i = 1:n
+    rescale = 1 / mean(MI_prenoise{i}(1,:));
+%     rescale = 1;
+    mseb(log10(noise), ...
+        rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
+        struct('col', {{cols(i,:)}}));
+    plot(log10(noise(precision_ind(i))), mean(MI_prenoise{i}(precision_ind(i),:)), '*')
+end
 
-%---- Run precision estimation on real and fake data and plot each
-MI_real = KSG_precision(X, Y, knn, repeats, noise, true);
-title(['Real data, moth ', moth, ', ', muscle])
-% MI_uncorr = KSG_precision(fake_uncorr, Y, knn, repeats, noise, true);
-% title('Uncorrelated fake data')
+% Initial information vs prenoise (aka a priori precision)
+figure
+hold on
+mseb(log10(noise), mean(MI_prenoise{1},2), std(MI_prenoise{1}, 0, 2)');
+plot(log10(prenoise), cellfun(@(x) mean(x(1,:)), MI_prenoise), '*')
+
+% Observed precision vs prenoise
+figure 
+hold on
+plot(precision(1) + prenoise, precision - precision(1), '*')
+%     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
+xlabel('Pre-added noise amplitude')
+ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 
 
 % %---- Deterministically linked fake data at different sample sizes
@@ -73,9 +90,12 @@ title(['Real data, moth ', moth, ', ', muscle])
 % ncheck = 5;
 % kdist = cell(ncheck, length(unq(unq~=0)));
 % % Loop over number of spikes in a wingbeat
-% for jj = unq(unq~=0)'
-%     useX = X(Nspike==jj, 1:jj);
-%     useY = Y(Nspike==jj, :);
+% % for jj = unq(unq~=0)'
+% for jj = 2
+% %     useX = X(Nspike==jj, 1:jj);
+% %     useY = Y(Nspike==jj, :);
+%     useX = Y;
+%     useY = Y;
 %     % Continue only if enough wingbeats with this many spikes
 %     if size(useX, 1) >= knn
 %         % Preallocate, setup figure
@@ -151,3 +171,57 @@ title(['Real data, moth ', moth, ', ', muscle])
 % probs(unq==0) = [];
 % scale = sum(probs' .* medians(1,:), 'omitnan') / sum(probs,'omitnan')
 
+
+function [MI_prenoise, precision, precision_ind] = precorruption_analysis(X, Y, knn, n, prenoise, noise, repeats)
+    arguments
+        X (:,:) double
+        Y (:,:) double
+        knn (1,1) double = 4
+        n (1,1) double = 5
+        prenoise (1,:) double = linspace(0, 6, n)
+        noise (1,:) double = (0:0.05:6)
+        repeats (1,1) double = 100
+    end
+    % Setup parameters and preallocate
+    MI_prenoise = cell(1,n);
+    MI_prenoise(:) = {zeros(length(noise), 2)};
+    precision = zeros(1, n);
+    precision_ind = zeros(1, n);
+    % Loop over noise levels, create fake data, run precision estimation
+    for i = 1:n
+        fake_X = X + prenoise(i) * rand(size(X));
+        MI_prenoise{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
+        % Get precision value
+        mis = MI_KSG_subsampling_multispike(fake_X, Y, knn, (1:50));
+        mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
+        precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((mean(MI_prenoise{i}(1,:)) - 2*mi_sd)), 1);
+        precision(i) = noise(precision_ind(i));
+    end
+    
+%     % Precision curves
+%     figure
+%     hold on
+%     cols = copper(n);
+%     for i = 1:n
+%     %     rescale = 1 / mean(MI_prenoise{i}(1,:));
+%         rescale = 1;
+%         mseb(log10(noise), ...
+%             rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
+%             struct('col', {{cols(i,:)}}));
+%         plot(log10(noise(precision_ind(i))), mean(MI_prenoise{i}(precision_ind(i),:)), '*')
+%     end
+%     
+%     % Initial information vs prenoise (aka a priori precision)
+%     figure
+%     hold on
+%     mseb(log10(noise), mean(MI_prenoise{1},2), std(MI_prenoise{1}, 0, 2)');
+%     plot(log10(prenoise), cellfun(@(x) mean(x(1,:)), MI_prenoise), '*')
+%     
+%     % Observed precision vs prenoise
+%     figure 
+%     hold on
+%     plot(precision(1) + prenoise, precision - precision(1), '*')
+% %     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
+%     xlabel('Pre-added noise amplitude')
+%     ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
+end
