@@ -42,7 +42,7 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
                     inds = Nspike == k;
                     % Call mutual information estimator
                     if sum(inds) > k && knn < sum(inds)
-                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
+                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn);
                     else
                         mi = 0;
                     end
@@ -64,7 +64,7 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
                     inds = Nspike == k;
                     % Call mutual information estimator
                     if sum(inds) > k && knn < sum(inds)
-                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn, pwd);
+                        mi = MIxnyn_matlab(X(inds, 1:k) + noise(i)*rand(sum(inds), k), Y(inds,:), knn);
                     else
                         mi = 0;
                     end

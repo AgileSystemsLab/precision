@@ -1,7 +1,7 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '1';
-muscle = 'RAX';
+moth = '2';
+muscle = 'RDLM';
 knn = 4;
 noise = (0:.05:6);
 repeats = 150;
@@ -25,20 +25,20 @@ unq = unique(Nspike);
 % end
 % fake_uncorr = fake_uncorr / 10;
 
-%---- Direct connected fake data ahead-of-time corrupted to specific noise levels
-% Setup parameters and preallocate
-pre_noise = linspace(0, 6, n);
-MI_direct = cell(1,n);
-MI_direct(:) = {zeros(length(noise), repeats)};
-fake_X = nan(size(X));
-figure()
-cols = copper(n);
-% Loop over noise levels, create fake data, run precision estimation
-for i = 1:n
-    fake_X = X + pre_noise(i) * rand(size(X));
-    MI_direct{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
-    mseb()
-end
+% %---- Direct connected fake data ahead-of-time corrupted to specific noise levels
+% % Setup parameters and preallocate
+% pre_noise = linspace(0, 6, n);
+% MI_direct = cell(1,n);
+% MI_direct(:) = {zeros(length(noise), repeats)};
+% fake_X = nan(size(X));
+% figure()
+% cols = copper(n);
+% % Loop over noise levels, create fake data, run precision estimation
+% for i = 1:n
+%     fake_X = X + pre_noise(i) * rand(size(X));
+%     MI_direct{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
+%     mseb()
+% end
 
 
 %---- Run precision estimation on real and fake data and plot each
