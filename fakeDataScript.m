@@ -25,20 +25,20 @@ unq = unique(Nspike);
 % end
 % fake_uncorr = fake_uncorr / 10;
 
-% %---- Direct connected fake data compared to real
-% % Setup parameters and preallocate
-% data_fraction = linspace(0.4, 1, n);
-% MI_direct = cell(1,n);
-% MI_direct(:) = {zeros(length(noise), repeats)};
-% fake_X = cell(1,n);
-% % fake_X(:) = {nan(size(X))};
-% % Loop over rescaling, create fake data, run precision estimation
-% for i = 1:n
-%     len_subsample = round(data_fraction(i) * length(Y));
-%     subsample = randperm(length(Y), len_subsample);
-%     fake_X{i} = X(subsample,:);
-%     MI_direct{i} = KSG_precision(fake_X{i}, Y(subsample,:), knn, 150, noise);
-% end
+%---- Direct connected fake data ahead-of-time corrupted to specific noise levels
+% Setup parameters and preallocate
+pre_noise = linspace(0, 6, n);
+MI_direct = cell(1,n);
+MI_direct(:) = {zeros(length(noise), repeats)};
+fake_X = nan(size(X));
+figure()
+cols = copper(n);
+% Loop over noise levels, create fake data, run precision estimation
+for i = 1:n
+    fake_X = X + pre_noise(i) * rand(size(X));
+    MI_direct{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
+    mseb()
+end
 
 
 %---- Run precision estimation on real and fake data and plot each
@@ -46,6 +46,7 @@ MI_real = KSG_precision(X, Y, knn, repeats, noise, true);
 title(['Real data, moth ', moth, ', ', muscle])
 % MI_uncorr = KSG_precision(fake_uncorr, Y, knn, repeats, noise, true);
 % title('Uncorrelated fake data')
+
 
 % %---- Deterministically linked fake data at different sample sizes
 % figure()
@@ -150,37 +151,3 @@ title(['Real data, moth ', moth, ', ', muscle])
 % probs(unq==0) = [];
 % scale = sum(probs' .* medians(1,:), 'omitnan') / sum(probs,'omitnan')
 
-%% How MI and precision improve with transformations
-% From Kraskov, replacing data with rank (index of order in total dataset)
-% can improve estimations, as MI should be invariant but transform gives
-% uniform density
-% Also from Kraskov, transforms can be a good idea in cases where
-% distributions are skewed, non-symmetric, or rough. log transform should
-% lead to symmetric, normal knn distances (as seen above, where distance
-% distribution is lognormal)
-[~,~,I] = unique(X + 1e-8 * rand(size(X)));
-
-xrange = range(X, 'all');
-% logxrange = range(log(X - min(X) + 0.1), 'all');
-
-% ranknoise = noise / range(X) * range(I);
-% lognoise = noise / xrange * logxrange;
-% MI_rank = KSG_precision(I, Y, knn, repeats, ranknoise, true);
-MI_log = KSG_precision(X, Y, knn, repeats, noise, false, true, true);
-
-figure
-rescale = 1 / mean(MI_real(1,:));
-mseb(log10(noise/xrange), rescale*mean(MI_real,2), std(MI_real,0,2)', struct('col',{{'b'}}));
-% mseb(log10(ranknoise/range(I)), mean(MI_rank,2), std(MI_rank,0,2)', struct('col',{{'r'}}));
-rescale = 1 / mean(MI_log(1,:));
-mseb(log10(noise/xrange), rescale*mean(MI_log,2), std(MI_log,0,2)', struct('col',{{'g'}}));
-xlabel('log10(noise amplitude / signal amplitude)')
-ylabel('Mutual Information (normalized)')
-title(['Moth ', moth,', ', muscle])
-
-mean_MI_real = mean(MI_real, 2);
-% mean_MI_rank = mean(MI_rank, 2);
-mean_MI_log = mean(MI_log, 2);
-real_p = noise(find(mean_MI_real < (mean_MI_real(1) - std(MI_real(2,:))), 1))
-% rank_p = ranknoise(find(mean_MI_rank < (mean_MI_rank(1) - std(MI_rank(1,:))), 1)) / range(I) * range(X)
-log_p = noise(find(mean_MI_log < (mean_MI_log(1) - std(MI_log(2,:))), 1)) %/ logxrange * xrange
