@@ -1,11 +1,11 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '3';
-muscle = 'LDVM';
+moth = '4';
+muscle = 'RDLM';
 knn = 4;
 noise = (0:.05:6);
 repeats = 150;
-n = 6; % How many different levels of rescaling to use
+n = 6; 
 
 %---- Load data
 load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
@@ -30,11 +30,23 @@ unq = unique(Nspike);
 % fake_uncorr = fake_uncorr / 10;
 
 %---- Direct connected fake data ahead-of-time corrupted to specific noise levels
-prenoise = linspace(0, 6, 5);
-n = 5;
+prenoise = linspace(0, 6, n);
 % fakeY = normrnd(0, 1, 3000, 2);
 % fakeX = fakeY * range(X,'all') / range(fakeY, 'all');
-[MI_prenoise, precision, precision_ind] = precorruption_analysis(X, Y, 4, n, prenoise, noise, 150);
+[MI_prenoise, noise_X] = precorruption_analysis(X, Y, 4, n, prenoise, noise, 150);
+
+%% Get precision values
+precision = zeros(1, n);
+precision_ind = zeros(1, n);
+for i = 1:n
+    mis = MI_KSG_subsampling_multispike(noise_X{i}, Y, knn, (1:50));
+    mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
+    % precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - mi_sd)), 1);
+    h = arrayfun(@(x) ttest2_mod(MI_prenoise{i}(x,:), MI_prenoise{i}(1,1), length(X), mi_sd^2),...
+        1:length(noise));
+    precision_ind(i) = find(h==1, 1);
+    precision(i) = noise(precision_ind(i));
+end
 
 %%
 % Precision curves
@@ -42,8 +54,8 @@ figure
 hold on
 cols = copper(n);
 for i = 1:n
-    rescale = 1 / mean(MI_prenoise{i}(1,:));
-%     rescale = 1;
+%     rescale = 1 / mean(MI_prenoise{i}(1,:));
+    rescale = 1;
     mseb(log10(noise), ...
         rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
         struct('col', {{cols(i,:)}}));
@@ -63,25 +75,6 @@ plot(precision(1) + prenoise, precision - precision(1), '*')
 %     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
 xlabel('Pre-added noise amplitude')
 ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
-
-
-% %---- Deterministically linked fake data at different sample sizes
-% figure()
-% hold on
-% cols = copper(n);
-% for i = 1:n
-%     signal_amp = max(fake_X{i}, [], 'all') - min(fake_X{i}, [], 'all');
-%     rescale = 1 / mean(MI_direct{i}(1,:));
-% %     rescale = 1;
-%     plot(log10(noise), rescale * mean(MI_direct{i}, 2), 'color', cols(i,:));
-% end
-% title('motor PCs directly to spike times with varying sample size')
-% xlabel('log10( noise added / signal range )')
-% ylabel('normalized information (1 at zero noise added)')
-% colormap(copper)
-% cbh = colorbar;
-% set(cbh,'YTick',linspace(0,1,n))
-% set(cbh,'YTickLabel', num2str(data_fraction.'))
 
 
 
@@ -172,7 +165,7 @@ ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 % scale = sum(probs' .* medians(1,:), 'omitnan') / sum(probs,'omitnan')
 
 
-function [MI_prenoise, precision, precision_ind] = precorruption_analysis(X, Y, knn, n, prenoise, noise, repeats)
+function [MI_prenoise, fake_X] = precorruption_analysis(X, Y, knn, n, prenoise, noise, repeats)
     arguments
         X (:,:) double
         Y (:,:) double
@@ -185,43 +178,11 @@ function [MI_prenoise, precision, precision_ind] = precorruption_analysis(X, Y, 
     % Setup parameters and preallocate
     MI_prenoise = cell(1,n);
     MI_prenoise(:) = {zeros(length(noise), 2)};
-    precision = zeros(1, n);
-    precision_ind = zeros(1, n);
+    fake_X = cell(1,n);
+    fake_X(:) = {nan(size(X))};
     % Loop over noise levels, create fake data, run precision estimation
     for i = 1:n
-        fake_X = X + prenoise(i) * rand(size(X));
-        MI_prenoise{i} = KSG_precision(fake_X, Y, knn, repeats, noise);
-        % Get precision value
-        mis = MI_KSG_subsampling_multispike(fake_X, Y, knn, (1:50));
-        mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
-        precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((mean(MI_prenoise{i}(1,:)) - 2*mi_sd)), 1);
-        precision(i) = noise(precision_ind(i));
+        fake_X{i} = X + prenoise(i) * rand(size(X));
+        MI_prenoise{i} = KSG_precision(fake_X{i}, Y, knn, repeats, noise);
     end
-    
-%     % Precision curves
-%     figure
-%     hold on
-%     cols = copper(n);
-%     for i = 1:n
-%     %     rescale = 1 / mean(MI_prenoise{i}(1,:));
-%         rescale = 1;
-%         mseb(log10(noise), ...
-%             rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
-%             struct('col', {{cols(i,:)}}));
-%         plot(log10(noise(precision_ind(i))), mean(MI_prenoise{i}(precision_ind(i),:)), '*')
-%     end
-%     
-%     % Initial information vs prenoise (aka a priori precision)
-%     figure
-%     hold on
-%     mseb(log10(noise), mean(MI_prenoise{1},2), std(MI_prenoise{1}, 0, 2)');
-%     plot(log10(prenoise), cellfun(@(x) mean(x(1,:)), MI_prenoise), '*')
-%     
-%     % Observed precision vs prenoise
-%     figure 
-%     hold on
-%     plot(precision(1) + prenoise, precision - precision(1), '*')
-% %     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
-%     xlabel('Pre-added noise amplitude')
-%     ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 end
