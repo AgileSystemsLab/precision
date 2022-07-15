@@ -3,9 +3,10 @@ rng('shuffle')
 moth = '4';
 muscle = 'RDLM';
 knn = 4;
-noise = (0:.05:6);
+% noise = (0:.05:6);
+noise = [0, logspace(log10(0.05), log10(6), 120)];
 repeats = 150;
-n = 6; 
+n = 5; 
 
 %---- Load data
 load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
@@ -29,15 +30,31 @@ prenoise = linspace(0, 6, n);
 precision = zeros(1, n);
 precision_ind = zeros(1, n);
 for i = 1:n
-    mis = MI_KSG_subsampling_multispike(noise_X{i}, Y, knn, (1:50));
+    mis = MI_KSG_subsampling_multispike(noise_X{i}, Y, knn, (1:5));
     mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
-    % precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - mi_sd)), 1);
-    h = arrayfun(@(x) ttest2_mod(MI_prenoise{i}(x,:), MI_prenoise{i}(1,1), length(X), mi_sd^2),...
-        1:length(noise));
-    hother = arrayfun(@(x) ttest(MI_prenoise{i}(x,:), MI_prenoise{i}(1,1)), 1:length(noise));
-    sum(h(2:end)) - sum(hother(2:end))
-    precision_ind(i) = find(h==1, 1);
+    precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - mi_sd)), 1);
     precision(i) = noise(precision_ind(i));
+end
+
+
+%% Alternative ways to find precision
+
+% Derivative threshold
+deriv_thresh = -1.5e-3;
+deriv_precision = zeros(1, n);
+deriv_prec_ind = zeros(1, n);
+for i = 1:n
+    meanMI = mean(MI_prenoise{i}, 2);
+    % Get smooth derivative of MI 
+    [b,g] = sgolay(2, 15);
+    % Note that magnitude of derivative is arbitrary
+    grad = conv(meanMI, -1 * g(:,2), 'same'); 
+    % Get where derivative passes below threshold
+    deriv_prec_ind(i) = find(grad < deriv_thresh, 1);
+    deriv_precision(i) = noise(deriv_prec_ind(i));
+%     % Fit both lines, find intersection
+%     b_start = [ones(start_ind, 1), noise(1:start_ind)'] \ meanMI(1:start_ind);
+%     b_end = [ones(length(noise)-end_ind+1, 1), noise(end_ind:end)'] \ meanMI(end_ind:end);
 end
 
 %%
@@ -52,6 +69,7 @@ for i = 1:n
         rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
         struct('col', {{cols(i,:)}}));
     plot(log10(noise(precision_ind(i))), mean(MI_prenoise{i}(precision_ind(i),:)), '*')
+    plot(log10(noise(deriv_prec_ind(i))), mean(MI_prenoise{i}(deriv_prec_ind(i),:)), 'o')
 end
 
 % Initial information vs prenoise (aka a priori precision)
@@ -63,7 +81,8 @@ plot(log10(prenoise), cellfun(@(x) mean(x(1,:)), MI_prenoise), '*')
 % Observed precision vs prenoise
 figure 
 hold on
-plot(precision(1) + prenoise, precision - precision(1), '*')
+plot(prenoise, precision - precision(1), '*')
+plot(prenoise, deriv_precision - deriv_precision(1), 'o')
 %     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
 xlabel('Pre-added noise amplitude')
 ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
