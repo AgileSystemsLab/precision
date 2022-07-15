@@ -26,18 +26,41 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
     probsmap = containers.Map(unq, probs);
     % Preallocate
     MI = zeros(length(noise), repeats);
-    % Parallel version
+    unq_notzero = unq(unq~=0)';
+    % If first noise level is zero, run that MI once here 
+    % (rather than many redundant times)
+    if noise(1) == 0
+        % Loop over number of spikes in wb
+        % Skip 0 spike group, because 0 spikes means no information
+        for k = unq_notzero
+            % Get indices of data with this many spikes
+            inds = Nspike == k;
+            % Call mutual information estimator
+            if sum(inds) > k && knn < sum(inds)
+                mi = MIxnyn_matlab(X(inds, 1:k), Y(inds,:), knn);
+            else
+                mi = 0;
+            end
+            % Adjust based on probability of this many spikes
+            MI(1,1) = MI(1,1) + mi * probsmap(k);
+        end
+        MI(1,:) = MI(1,1);
+        noise_inds = 2:length(noise);
+    else
+        noise_inds = 1:length(noise);
+    end
+    %---- Run estimation: Parallel version
     if runparallel
         if isempty(gcp('nocreate'))
             parpool();
         end
         % Loop over noise levels
-        parfor i = 1:length(noise)
+        parfor i = noise_inds
             % Loop over repeats
             for j = 1:repeats
                 % Loop over number of spikes in wb
                 % Skip 0 spike group, because 0 spikes means no information
-                for k = unq(unq~=0)'
+                for k = unq_notzero
                     % Get indices of data with this many spikes
                     inds = Nspike == k;
                     % Call mutual information estimator
@@ -51,15 +74,21 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
                 end
             end
         end
-    % Serial version
+    %---- Run estimation: Serial version
     else
         % Loop over noise levels
-        for i = 1:length(noise)
+        for i = noise_inds
+            % If first noise level is zero, just run once as there will be no variation
+            if i == 1 && noise(i) == 0
+                rep = 1;
+            else
+                rep = repeats;
+            end
             % Loop over repeats
-            for j = 1:repeats
+            for j = 1:rep
                 % Loop over number of spikes in wb
                 % Skip 0 spike group, because 0 spikes means no information
-                for k = unq(unq~=0)'
+                for k = unq_notzero
                     % Get indices of data with this many spikes
                     inds = Nspike == k;
                     % Call mutual information estimator
@@ -76,6 +105,10 @@ function [MI] = KSG_precision(X, Y, knn, repeats, noise, doplot, runparallel)
     end
     % Convert from nats to bits
     MI = MI / log(2);
+    % If first noise level was zero, spread MI value out to all "repeats" that didn't actually happen
+    if noise(1) == 0
+        MI(1,:) = MI(1,1);
+    end
     % Make plot, if requested
     if doplot
         figure();
