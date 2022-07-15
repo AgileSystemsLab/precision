@@ -19,16 +19,6 @@ unq = unique(Nspike);
 % MI_real = KSG_precision(X, Y, knn, repeats, noise, true);
 % title(['Real data, moth ', moth, ', ', muscle])
 
-% %---- Fake data: Totally uncorrelated
-% % Same resolution, range, and # of spikes as real data, but uniformly distributed
-% fake_uncorr = nan(size(X));
-% % Shift so min resolution is 1, allowing rand generation using ints
-% minmax = round([min(X, [], 'all'), max(X, [], 'all')] * 10); 
-% for i = 1:size(X,1)
-%     fake_uncorr(i,1:Nspike(i)) = randi(minmax, 1, Nspike(i));
-% end
-% fake_uncorr = fake_uncorr / 10;
-
 %---- Direct connected fake data ahead-of-time corrupted to specific noise levels
 prenoise = linspace(0, 6, n);
 % fakeY = normrnd(0, 1, 3000, 2);
@@ -44,6 +34,8 @@ for i = 1:n
     % precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - mi_sd)), 1);
     h = arrayfun(@(x) ttest2_mod(MI_prenoise{i}(x,:), MI_prenoise{i}(1,1), length(X), mi_sd^2),...
         1:length(noise));
+    hother = arrayfun(@(x) ttest(MI_prenoise{i}(x,:), MI_prenoise{i}(1,1)), 1:length(noise));
+    sum(h(2:end)) - sum(hother(2:end))
     precision_ind(i) = find(h==1, 1);
     precision(i) = noise(precision_ind(i));
 end
