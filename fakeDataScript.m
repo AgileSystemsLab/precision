@@ -1,7 +1,7 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '4';
-muscle = 'RDLM';
+moth = '4'; % 3
+muscle = 'LDLM'; %RBA
 knn = 4;
 % noise = (0:.05:6);
 noise = [0, logspace(log10(0.05), log10(6), 120)];
@@ -21,10 +21,9 @@ unq = unique(Nspike);
 % title(['Real data, moth ', moth, ', ', muscle])
 
 %---- Direct connected fake data ahead-of-time corrupted to specific noise levels
-prenoise = linspace(0, 6, n);
-% fakeY = normrnd(0, 1, 3000, 2);
-% fakeX = fakeY * range(X,'all') / range(fakeY, 'all');
-[MI_prenoise, noise_X] = precorruption_analysis(X, Y, 4, n, prenoise, noise, 150);
+% prenoise = linspace(0, 6, n);
+prenoise = logspace(log10(0.05), 0.5, n);
+[MI_prenoise, noise_X] = precorruption_analysis(Y, Y, 4, n, prenoise, noise, 2);
 
 %% Get precision values
 precision = zeros(1, n);
@@ -32,7 +31,7 @@ precision_ind = zeros(1, n);
 for i = 1:n
     mis = MI_KSG_subsampling_multispike(noise_X{i}, Y, knn, (1:5));
     mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
-    precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - mi_sd)), 1);
+    precision_ind(i) = find(mean(MI_prenoise{i}, 2) < ((MI_prenoise{i}(1,1) - 10*mi_sd)), 1);
     precision(i) = noise(precision_ind(i));
 end
 
@@ -66,12 +65,16 @@ for i = 1:n
 %     rescale = 1 / mean(MI_prenoise{i}(1,:));
     rescale = 1;
     mseb(log10(noise), ...
-        rescale * mean(MI_prenoise{i},2), rescale * std(MI_prenoise{i}, 0, 2)',...
+        rescale * mean(MI_prenoise{i},2), ...
+        rescale * std(MI_prenoise{i}, 0, 2)',...
         struct('col', {{cols(i,:)}}));
+%     plot(log10((noise + prenoise(i))/range(noise_X{i},'all')), mean(MI_prenoise{i}, 2), ...
+%         'color', cols(i,:))
     plot(log10(noise(precision_ind(i))), mean(MI_prenoise{i}(precision_ind(i),:)), '*')
     plot(log10(noise(deriv_prec_ind(i))), mean(MI_prenoise{i}(deriv_prec_ind(i),:)), 'o')
 end
 
+%%
 % Initial information vs prenoise (aka a priori precision)
 figure
 hold on
@@ -83,23 +86,29 @@ figure
 hold on
 plot(prenoise, precision - precision(1), '*')
 plot(prenoise, deriv_precision - deriv_precision(1), 'o')
-%     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-')
+%     plot(get(gca, 'xlim'), get(gca, 'xlim'), 'k-') 
 xlabel('Pre-added noise amplitude')
 ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 
+%%
 
+figure 
+hold on
+bob = prenoise(5)*rand(1000);
+bob1 =  prenoise(5)*rand(1000) + noise(75)*rand(1000);
+bob2 = (noise(75) + prenoise(5)) * rand(1000);
+histogram(bob, 'normalization', 'pdf')
+histogram(bob1, 'normalization', 'pdf')
+histogram(bob2, 'normalization', 'pdf')
 
 % %% Distribution of kth nearest neighbor distances as noise is added
 % % Levels of noise to check
 % ncheck = 5;
 % kdist = cell(ncheck, length(unq(unq~=0)));
 % % Loop over number of spikes in a wingbeat
-% % for jj = unq(unq~=0)'
-% for jj = 2
-% %     useX = X(Nspike==jj, 1:jj);
-% %     useY = Y(Nspike==jj, :);
-%     useX = Y;
-%     useY = Y;
+% for jj = unq(unq~=0)'
+%     useX = X(Nspike==jj, 1:jj);
+%     useY = Y(Nspike==jj, :);
 %     % Continue only if enough wingbeats with this many spikes
 %     if size(useX, 1) >= knn
 %         % Preallocate, setup figure
@@ -153,7 +162,7 @@ ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 %             ax(ii).set('xtick', log10(xtickspace));
 %             ax(ii).set('xticklabels', []);
 %         end
-%         ax(end).set('xticklabels', num2cell(round(10.^get(ax(end),'XTick'), 2)));
+%         ax(end).set('xticklabels', num2cell(round(10.^get(ax(end),'XTick'), 4)));
 %         xlabel(ax(end), ...
 %             ['k=',num2str(knn),'$^{th}$ N.N. distance in space $\|z-z`\| = max\{\|x-x`\|, \|y-y`\|\}$'], ...
 %             "interpreter", "latex")
@@ -162,7 +171,7 @@ ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 %     end
 % end
 % 
-% %% Median distance against noise
+% % Median distance against noise
 % medians = cellfun(@(x) median(x, 'omitnan'), kdist);
 % figure()
 % boxplot(medians)
@@ -193,6 +202,11 @@ function [MI_prenoise, fake_X] = precorruption_analysis(X, Y, knn, n, prenoise, 
     fake_X(:) = {nan(size(X))};
     % Loop over noise levels, create fake data, run precision estimation
     for i = 1:n
+%         if i==1
+%             fake_X{i} = Y;
+%         else
+%             fake_X{i} = Y .* (prenoise(i) * rand(size(Y)));
+%         end
         fake_X{i} = X + prenoise(i) * rand(size(X));
         MI_prenoise{i} = KSG_precision(fake_X{i}, Y, knn, repeats, noise);
     end
