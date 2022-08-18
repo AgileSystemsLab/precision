@@ -1,5 +1,5 @@
 .DS_Store
-fakeDataScript.asv
+*.asv
 *Data
 *figures
 *papers
