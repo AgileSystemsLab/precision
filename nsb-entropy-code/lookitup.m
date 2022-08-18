@@ -1,4 +1,4 @@
-function idx=lookup(table,xi)
+function idx=lookitup(table,xi)
 
 
 %% Copyright (C) 2000 Paul Kienzle

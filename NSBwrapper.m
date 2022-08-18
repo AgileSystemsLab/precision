@@ -27,6 +27,7 @@ for i = 1:numofmoths %same data extraction process
     load(fullfile('SubmittedDataallmusclesAllareTzWsd', ['Moth', num2str(i), '_MIdata.mat']))
     mothname = ['Moth', num2str(i)];
     fields = fieldnames(time_data);
+    tic
     for fn=fields'
         fn;
         %fn = {'LDLMstrokes'} %Change this to a specific muscle to debug
@@ -183,10 +184,7 @@ for i = 1:numofmoths %same data extraction process
         end
         othercount = othercount +1;
     end
-    
-    
-    
-    
+    toc
 end
 
 %converting everything to bits

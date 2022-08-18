@@ -101,7 +101,7 @@ function B = B_xiK (xi, K)
   %% the (approximate) values of B given xi
   [row, col] =size(xi);
   xi=xi(:);
-  B=Bxi_interp_in(2,lookup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi)+1);
+  B=Bxi_interp_in(2,lookitup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi)+1);
   B=B(:);  
   
   
@@ -227,8 +227,8 @@ function B = B_xiK (xi, K)
 %   %
 %   Bxi_interp_in(1,2:size(Bxi_interp_in,2))
 %   % table = Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1)
-%   B=Bxi_interp_in(2, lookup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi)+1 );
-%  % B=Bxi_interp_in(2,lookup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi) +1);
+%   B=Bxi_interp_in(2, lookitup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi)+1 );
+%  % B=Bxi_interp_in(2,lookitup(Bxi_interp_in(1,2:size(Bxi_interp_in,2)-1), xi) +1);
 %   B=B(:);
 % 
 % 

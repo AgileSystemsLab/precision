@@ -1,10 +1,13 @@
 Version 1.13.whatever
 
 Changes: 
-1) Modified find_nsb_entropy.m and max_evidence.m to not spit out disp and 
-warning messages to console (purely for speed reasons, calling these 
-routines in large numbers leads to huge slowdown when each call prints 
-heavily to console)
+1)  Modified find_nsb_entropy.m and max_evidence.m to not spit out disp and 
+    warning messages to console (purely for speed reasons, calling these 
+    routines in large numbers leads to huge slowdown when each call prints 
+    heavily to console)
+2)  lookup.m changed to lookitup.m to avoid name collisions that seem to 
+    happen on windows. 
+    B_xiK.m modified to call "lookitup.m" now instead of "lookup.m"
 
 -Leo Wood
 
