@@ -7,14 +7,10 @@ numofmoths = 7;
 
 %This next section sets up all the different data storage vectors
 conditionalentropyvec= zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
-conditionalentropyvecbyhand= zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
-
 conditionalentropyerrorcodevec= zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 conditionalS_ml1vec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 conditionaldS_nsbvec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 rangevec = zeros(numofmoths*10, numofspikingbins);
-
-% entropyvecbyhand = zeros(numofmoths*10, numofspikingbins);
 
 othercount = 1;
 binsizevec = [];
@@ -96,22 +92,6 @@ for i = 1:numofmoths %same data extraction process
                 words(mask) = o;
                 
             end
-            %start direct calculation
-%             %lines 112 through 125 are not necessary for the estimator
-%             newprobdist = [];
-%             for u = min(words):max(words)
-%                 mask = (words ==u);
-%                 newprobdist = [newprobdist, sum(mask)/length(words)];
-%             end
-%             entropybyhand = 0; 
-%             for t = 1:length(newprobdist)
-%                 if newprobdist(t) ~= 0
-%                     entropybyhand = entropybyhand+newprobdist(t)*log(newprobdist(t));%/log(2);
-%                 end
-%             end
-%             
-%             entropyvecbyhand(othercount, count) = -entropybyhand;
-            %end direct calculation
             
             nx = [];%different counts in bins
 %             K = max(words)-min(words); %number of different counts
@@ -146,7 +126,7 @@ for i = 1:numofmoths %same data extraction process
                     tempstdvec = [];
                     [probdist, torquewordcolumn] = torquebreakups(j, Tz_WSd(randperm(length(Tz_WSd)),:));%this function just splits up the torque into j bins and then uses that to create torque words
     %                 [probdist, torquewordcolumn] = torquebreakups1columnonlyplease(j, Tz_WSd(:, 1));%this does only first pc column
-                    [countofspikekx, countofspikenx, Knew, entropyvec] = conditionalspikesfunc(torquewordcolumn, words, j, g); % this function identifies the spiking words that identify with the torquewords
+                    [countofspikekx, countofspikenx, Knew, ~] = conditionalspikesfunc(torquewordcolumn, words, j, g); % this function identifies the spiking words that identify with the torquewords
                     
                     conditionalentropy = 0;
                     conditionalentropysml1 = 0;
@@ -170,7 +150,6 @@ for i = 1:numofmoths %same data extraction process
                     conditionalentropyvec(othercount, count, j, jj) = conditionalentropy;%storing everything
                     conditionalS_ml1vec(othercount, count, j, jj) = conditionalentropysml1;
                     conditionaldS_nsbvec(othercount, count, j, jj) = sqrt(sum(tempstdvec));
-                    conditionalentropyvecbyhand(othercount, count, j, jj) = -(sum(probdist.*entropyvec));
                 end
             end
             count = count+1;

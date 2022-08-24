@@ -16,30 +16,31 @@ Y = Tz_WSd;
 Nspike = sum(~isnan(X), 2);
 unq = unique(Nspike);
 
-% %---- Bin-discretized Y data as fake X
-% % Get bin sizes equivalent to desired max and min noise level
-% minbin = ceil(range(X,'all') / 5.9);
-% maxbin = round(range(X, 'all') / 1);
-% nbin = round(linspace(minbin, maxbin, n));
-% % Preallocate
-% MI_disc = cell(1,n);
-% fakeX = cell(1,n);
-% bin_edges = cell(1,n);
-% bin = cell(1,n);
-% MI_disc(:) = {zeros(length(noise), repeats)};
-% fakeX(:) = {nan(size(X))};
-% % Loop over number of bins to discretize by
-% for i = 1:n
-%     [~, bin_edges{i}, bin{i}] = histcounts(X, nbin(i));
-%     fakeX{i} = bin_edges{i}(bin{i} + 1);
-%     fakeX{i}(fakeX{i}==bin_edges{i}(1)) = nan;
-%     % Indexing above can sometimes cause transpose, so undo if it happens
-%     if size(fakeX{i}, 1) < size(fakeX{i}, 2) 
-%         fakeX{i} = fakeX{i}';
-%     end
-%     MI_disc{i} = KSG_precision(fakeX{i}, Y, knn, repeats, noise);
-% end
+%---- Bin-discretized real Y data as fake X
+% Get bin sizes equivalent to desired max and min noise level
+minbin = ceil(range(X,'all') / 5.9);
+maxbin = round(range(X, 'all') / 1);
+nbin = round(linspace(minbin, maxbin, n));
+% Preallocate
+MI_disc = cell(1,n);
+fakeX = cell(1,n);
+bin_edges = cell(1,n);
+bin = cell(1,n);
+MI_disc(:) = {zeros(length(noise), repeats)};
+fakeX(:) = {nan(size(X))};
+% Loop over number of bins to discretize by
+for i = 1:n
+    [~, bin_edges{i}, bin{i}] = histcounts(X, nbin(i));
+    fakeX{i} = bin_edges{i}(bin{i} + 1);
+    fakeX{i}(fakeX{i}==bin_edges{i}(1)) = nan;
+    % Indexing above can sometimes cause transpose, so undo if it happens
+    if size(fakeX{i}, 1) < size(fakeX{i}, 2) 
+        fakeX{i} = fakeX{i}';
+    end
+    MI_disc{i} = KSG_precision(fakeX{i}, Y, knn, repeats, noise);
+end
 MI_real = KSG_precision(X, Y, knn, repeats, noise);
+
 
 %% Get precision values
 precision = zeros(1, n);
@@ -65,9 +66,6 @@ for i = 1:n
     % Get where derivative passes below threshold
     deriv_prec_ind(i) = find(grad < deriv_thresh, 1);
     deriv_precision(i) = noise(deriv_prec_ind(i));
-%     % Fit both lines, find intersection
-%     b_start = [ones(start_ind, 1), noise(1:start_ind)'] \ meanMI(1:start_ind);
-%     b_end = [ones(length(noise)-end_ind+1, 1), noise(end_ind:end)'] \ meanMI(end_ind:end);
 end
 
 %% Figures
@@ -133,16 +131,6 @@ title(['Moth ', moth, ' ', muscle])
 % xlabel('Pre-added noise amplitude')
 % ylabel('$\Delta$Precision observed', 'interpreter', 'latex')
 
-%%
-
-figure 
-hold on
-bob = 0.5 * rand(1000);
-bob1 = 1 * rand(1000) + 0.5 * rand(1000);
-bob2 = 1.5 * rand(1000);
-histogram(bob, 'normalization', 'pdf')
-histogram(bob1, 'normalization', 'pdf')
-histogram(bob2, 'normalization', 'pdf')
 
 %% Distribution of kth nearest neighbor distances as noise is added
 % Levels of noise to check
