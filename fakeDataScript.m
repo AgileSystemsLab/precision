@@ -1,56 +1,72 @@
 rng('shuffle')
 % Moth and muscle to focus on
-moth = '3';
-muscle = 'LDLM';
+nmoths = 7;
+nmuscles = 10;
 knn = 4;
 noise = [0, logspace(log10(0.05), log10(6), 120)];
 repeats = 150;
 n = 10; 
 
-%---- Load data
-load(fullfile('Data',['Moth',num2str(moth),'_MIdata.mat']))
-% Rename so it's easier to write, get some useful quantities out
-X = time_data.([muscle,'strokes']);
-Y = Tz_WSd;
-Nspike = sum(~isnan(X), 2);
-unq = unique(Nspike);
 
-%% Real data bin-discretized 
-%---- Bin-discretized real spike data as "fake" X
-% Get bin sizes equivalent to desired max and min noise level
-minbin = ceil(range(X,'all') / 5);
-maxbin = round(range(X, 'all') / 1);
-nbin = round(linspace(minbin, maxbin, n));
+% Save results
+save('KSG_data.mat', 'MI', 'noise', 'repeats', 'knn')
+
 % Preallocate
-MI_disc = cell(1,n);
-fakeX = cell(1,n);
-bin_edges = cell(1,n);
-bin = cell(1,n);
-MI_disc(:) = {zeros(length(noise), repeats)};
-fakeX(:) = {nan(size(X))};
-% Loop over number of bins to discretize by
-for i = 1:n
-    [~, bin_edges{i}, bin{i}] = histcounts(X, nbin(i));
-    fakeX{i} = bin_edges{i}(bin{i} + 1);
-    fakeX{i}(fakeX{i}==bin_edges{i}(1)) = nan;
-    % Indexing above can sometimes cause transpose, so undo if it happens
-    if size(fakeX{i}, 1) < size(fakeX{i}, 2) 
-        fakeX{i} = fakeX{i}';
+precision = cell(nmoths, nmuscles);
+apriori_precision = cell(nmoths, nmuscles);
+precision(:) = zeros(1, n);
+apriori_precision(:) = zeros(1, n);
+
+% Loop over moths
+for m = 1:nmoths
+    % Load data
+    load(fullfile('Data',['Moth',num2str(m),'_MIdata.mat']))
+    fields = fieldnames(time_data);
+    disp(['Moth ',num2str(i)])
+    % Loop over muscles
+    for muscle = 1:length(fields)
+        disp(fields{muscle}(1:end-7))
+        % Rename so it's easier to write, get some useful quantities out
+        X = time_data.([fields{muscle},'strokes']);
+        Y = Tz_WSd;
+        
+        %---- Bin-discretized real spike data as "fake" X
+        % Get bin sizes equivalent to desired max and min noise level
+        minbin = ceil(range(X,'all') / 5);
+        maxbin = round(range(X, 'all') / 1);
+        nbin = round(linspace(minbin, maxbin, n));
+        % Preallocate
+        MI_disc = cell(1,n);
+        fakeX = cell(1,n);
+        bin_edges = cell(1,n);
+        bin = cell(1,n);
+        MI_disc(:) = {zeros(length(noise), repeats)};
+        fakeX(:) = {nan(size(X))};
+        % Loop over number of bins to discretize by
+        for i = 1:n
+            [~, bin_edges{i}, bin{i}] = histcounts(X, nbin(i));
+            fakeX{i} = bin_edges{i}(bin{i} + 1);
+            fakeX{i}(fakeX{i}==bin_edges{i}(1)) = nan;
+            % Indexing above can sometimes cause transpose, so undo if it happens
+            if size(fakeX{i}, 1) < size(fakeX{i}, 2) 
+                fakeX{i} = fakeX{i}';
+            end
+            MI_disc{i} = KSG_precision(fakeX{i}, Y, knn, repeats, noise);
+        end
+        MI_real = KSG_precision(X, Y, knn, repeats, noise);
+        
+        
+        % Get precision values
+        precision = zeros(1, n);
+        precision_ind = zeros(1, n);
+        for i = 1:n
+            mis = MI_KSG_subsampling_multispike(fakeX{i}, Y, knn, (1:4));
+            mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
+            precision_ind(i) = find(mean(MI_disc{i}, 2) < (MI_disc{i}(1,1) - mi_sd), 1);
+        %     precision_ind(i) = find(mean(MI_disc{i}, 2) < (MI_disc{i}(1,1) - std(MI_disc{i}(2,:))), 1);
+            precision(i) = noise(precision_ind(i));
+        end
     end
-    MI_disc{i} = KSG_precision(fakeX{i}, Y, knn, repeats, noise);
-end
-MI_real = KSG_precision(X, Y, knn, repeats, noise);
-
-
-% Get precision values
-precision = zeros(1, n);
-precision_ind = zeros(1, n);
-for i = 1:n
-    mis = MI_KSG_subsampling_multispike(fakeX{i}, Y, knn, (1:4));
-    mi_sd = findMI_KSG_stddev(mis, size(X,1), false);
-    precision_ind(i) = find(mean(MI_disc{i}, 2) < (MI_disc{i}(1,1) - mi_sd), 1);
-%     precision_ind(i) = find(mean(MI_disc{i}, 2) < (MI_disc{i}(1,1) - std(MI_disc{i}(2,:))), 1);
-    precision(i) = noise(precision_ind(i));
 end
 
 % Plot a priori precision vs observed
@@ -67,9 +83,6 @@ cols = copper(n);
 for i = 1:n
     % Plot line of MI against noise
     plot(log10(noise), mean(MI_disc{i}, 2), 'color', cols(i,:))
-    % Plot precision points
-%     plot(log10(noise(precision_ind(i))), mean(MI_disc{i}(precision_ind(i),:)), '*')
-%     plot(log10(noise(deriv_prec_ind(i))), mean(MI_disc{i}(deriv_prec_ind(i),:)), 'o')
 end
 mseb(log10(noise), mean(MI_real,2), std(MI_real, 0, 2)');
 xlabel('log10(noise)')
