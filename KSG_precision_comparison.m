@@ -100,25 +100,20 @@ exportgraphics(gcf,fullfile('figures','KSG_precision_methods.pdf'),'ContentType'
 % Precision values
 % Original method
 precision = zeros(nmoths, nmuscles);
+deriv_precision = zeros(nmoths, nmuscles);
+twoline_precision = zeros(nmoths, nmuscles);
+x = log10(noise);
 for i = 1:nmoths
     % Load data
     load(fullfile('Data',['Moth',num2str(i),'_MIdata.mat']))
     fields = fieldnames(time_data);
     for j = 1:nmuscles
+        meanMI = mean(MI{i,j}, 2);
         mis = MI_KSG_subsampling_multispike(time_data.(fields{j}), Tz_WSd, knn, (1:10));
         mi_sd = findMI_KSG_stddev(mis, size(time_data.(fields{j}), 1), false);
-        precision_ind = find(mean(MI{i,j}, 2) < ((MI{i,j}(1,1) - mi_sd)), 1);
+        precision_ind = find(meanMI < ((MI{i,j}(1,1) - mi_sd)), 1);
         precision(i,j) = noise(precision_ind);
-    end
-end
-
-% Alternative ways to find precision
-deriv_precision = zeros(nmoths, nmuscles);
-twoline_precision = zeros(nmoths, nmuscles);
-x = log10(noise);
-for i = 1:nmoths
-    for j = 1:nmuscles
-        meanMI = mean(MI{i,j}, 2);
+        % Alternative ways to find precision
         % Get smooth derivative of MI, find where passes threshold
         pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
         grad = conv(pad, -1 * g(:,2), 'same'); 
