@@ -4,9 +4,9 @@ load('KSG_data.mat')
 nmoths = 7;
 nmuscles = 10;
 
-savefigs = false;
+savefigs = true;
 
-deriv_thresh_scale = 0.3; % Derivative threshold
+deriv_thresh_scale = 0.38687; % Derivative threshold
 sg_ord = 2; % Savitsky-golay filter order
 sg_window = 11; % Savitsky-golay filter window length
 [b,g] = sgolay(sg_ord, sg_window);
@@ -24,7 +24,7 @@ mis = MI_KSG_subsampling_multispike(time_data.(fields{examp_muscle}), Tz_WSd, kn
 mi_sd = findMI_KSG_stddev(mis, size(time_data.(fields{examp_muscle}), 1), false);
 meanMI = mean(MI{examp_moth, examp_muscle}, 2);
 
-figure('outerposition', [440 366 967 381])
+figure('outerposition', [440 366 967 350])
 t = tiledlayout(2,3);
 %--- Original method
 precision_ind = find(meanMI < ((meanMI(1) - mi_sd)), 1);
@@ -37,15 +37,9 @@ plot(log10(noise(precision_ind)), meanMI(precision_ind), 'r.', 'MarkerSize', 15)
 ylim([0, 0.9])
 xlabel('log_1_0(r_c (ms))')
 ylabel('MI (bits / wing stroke)')
-title('Original Method')
+title('STD Threshold Method')
 
 %--- Derivative method
-
-% ycenter = conv(meanMI, b((sg_window+1)/2,:), 'valid');
-% ybegin = b(end:-1:(sg_window+3)/2,:) * meanMI(sg_window:-1:1);
-% yend = b((sg_window-1)/2:-1:1,:) * meanMI(end:-1:end-(sg_window-1));
-% grad = [ybegin; ycenter; yend];
-
 pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
 grad = conv(pad, -1 * g(:,2), 'same'); 
 grad = grad(sg_window+1:end-sg_window);
@@ -90,11 +84,11 @@ title('Line Intersection Method')
 % Derivative of MI vs noise (down here because nexttile is dumb)
 nexttile([1,1])
 hold on
-plot(log10(noise), grad, 'Color', '#2D427E')
-yline(deriv_thresh, 'LineWidth', 2)
-plot(log10(noise(deriv_prec_ind)), grad(deriv_prec_ind), 'r.', 'MarkerSize', 15)
+plot(log10(noise), -grad/min(grad), 'Color', '#2D427E')
+yline(-deriv_thresh_scale, 'LineWidth', 2)
+plot(log10(noise(deriv_prec_ind)), -grad(deriv_prec_ind)/min(grad), 'r.', 'MarkerSize', 15)
 xlabel('log_1_0(r_c (ms))')
-ylabel('Derivative of MI (a.u.)')
+ylabel('d MI / d r_c (a.u.)')
 
 if savefigs
     exportgraphics(gcf,fullfile('figures','KSG_precision_methods.pdf'),'ContentType','vector')
@@ -137,7 +131,7 @@ for i = 1:nmoths
     end
 end
 
-figure('Outerposition', [440, 495, 967, 381])
+figure('Outerposition', [440, 495, 967, 250])
 ax = gobjects(1,5);
 col = '#4472C4';
 h_deriv = zeros(1,5); p_deriv = zeros(1,5);
@@ -159,8 +153,9 @@ for i = 1:5
     plot(tX, tP, 'r.', 'MarkerSize', 7, 'color', [0 0 0 0.3])
     
     xlim([-0.5 2.5])
+    ylim([0, 4])
     set(gca, 'xtick', [0 1 2]);
-    set(gca, 'xticklabels', {'Original', 'Derivative', 'Intersection'});
+    set(gca, 'xticklabels', {'STD', 'Derivative', 'Intersection'});
     title(fields{i}(2:end-7))
     [h_deriv(i), p_deriv(i)] = ttest2(P, dP);
     [h_intersect(i), p_intersect(i)] = ttest2(P, tP);
