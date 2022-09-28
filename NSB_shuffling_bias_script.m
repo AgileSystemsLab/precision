@@ -6,8 +6,8 @@ repeats = 3;
 numofmoths = 7;
 
 %This next section sets up all the different data storage vectors
-conditionalentropyvec= zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
-conditionalentropyerrorcodevec= zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
+conditionalentropyvec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
+conditionalentropyerrorcodevec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 conditionalS_ml1vec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 conditionaldS_nsbvec = zeros(numofmoths*10, numofspikingbins, numoftorquebins, repeats);
 rangevec = zeros(numofmoths*10, numofspikingbins);
@@ -136,12 +136,8 @@ for i = 1:numofmoths %same data extraction process
                              S_ml1 = 0;
                          else
                              Knew = 24360;
-    
-                            [S_nsbword, dS_nsbword, S_clword, dS_clword, xi_clword, S_ml1,errcodeword] = find_nsb_entropy (countofspikekx{f}, countofspikenx{f}, Knew, .1, 1);
+                            [S_nsbword, dS_nsbword, S_clword, dS_clword, xi_clword, S_ml1, ~] = find_nsb_entropy(countofspikekx{f}, countofspikenx{f}, Knew, .1, 1);
                          end
-                        if errcodeword ~= 0
-                           posd = 8; 
-                        end
                         tempstdvec = [tempstdvec, ((dS_nsbword)^2)*probdist(f)];%standard deviation calculation
                         conditionalentropy = conditionalentropy+S_nsbword*probdist(f);
                         conditionalentropysml1 = conditionalentropysml1+S_ml1*probdist(f);

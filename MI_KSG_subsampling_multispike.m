@@ -13,6 +13,14 @@ function [MIs] = MI_KSG_subsampling_multispike(X, Y, knn, split_sizes, do_plot)
         means = zeros(n,1);
         errorbars = zeros(n,1);
     end
+    % If KSG tools not on path, add to path 
+    % (dumb and assumes folder within dir of this function)
+    % (Checks entire path, could be way more efficient but ¯\_(ツ)_/¯ )
+    path_cell = regexp(path, pathsep, 'split');
+    function_dir = fileparts(mfilename('fullpath'));
+    if ~any(strcmpi(fullfile(function_dir, 'ContinuousMIEstimation'), path_cell))
+        addpath(fullfile(function_dir, 'ContinuousMIEstimation'))
+    end
     % Loop over data splits
     for i = 1:n
         % Permute data, assign at random to one of the subsets

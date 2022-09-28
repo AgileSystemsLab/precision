@@ -1,11 +1,11 @@
-function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, conditionaldS_nsbvec, conditionalS_ml1vec] = NSB_precision(X, Y, nspikingbins, ntorquebins)
+function [conditionalentropyvec_bias, conditionalS_ml1vec_bias, conditionaldS_nsbvec_bias, conditionvariance_bias] = NSB_precision_bias(X, Y, nspikingbins, ntorquebins, repeats)
     arguments
         X (:,:) double                  % X - array of spike times, each row is a wingbeat
         Y (:,:) double                  % Y - array of ouput variables, likely PC1,PC2 of yaw torque. Each row is a wb
         nspikingbins (1,1) double = 70  % Maximum number of word bins
         ntorquebins (1,1) double = 2;   % Maximum number of torque bins
+        repeats (1,1) double = 5;       % How many times to repeat to estimate bias
     end
-
     % If NSB tools not on path, add to path 
     % (dumb and assumes folder within dir of this function)
     % (Checks entire path, could be way more efficient but ¯\_(ツ)_/¯ )
@@ -15,17 +15,12 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
         addpath(fullfile(function_dir, 'nsb-entropy-code'))
     end
     tic
-
     
     %This next section sets up all the different data storage vectors
-    conditionalentropyvec = zeros(1, nspikingbins);
-    conditionalS_ml1vec = zeros(1, nspikingbins);
-    conditionaldS_nsbvec = zeros(1, nspikingbins);
-    
-    errorcodevec = zeros(1, nspikingbins);
-    S_nsbwordvec = zeros(1, nspikingbins);
-    S_ml1wordvec = zeros(1, nspikingbins);
-    dS_nsbwordvec = zeros(1, nspikingbins);
+    conditionalentropyvec_bias = zeros(nspikingbins, repeats);
+    conditionalS_ml1vec_bias = zeros(nspikingbins, repeats);
+    conditionaldS_nsbvec_bias = zeros(nspikingbins, repeats);
+
     
     binsizevec = [];
 
@@ -62,6 +57,7 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
             x = x-1;
         end
         
+        
         wordarray = [holdup, newwords];
         %Find the number of different words in the set
         [newwords, ia, ~] = (unique(wordarray, 'rows'));
@@ -77,40 +73,39 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
         end
         
         for j = ntorquebins %this is where the word spikes are split into torque words
-            tempstdvec = 0;
-            [probdist, torquewordcolumn] = torquebreakups(j, Y);%this function just splits up the torque into j bins and then uses that to create torque words
-            [countofspikekx, countofspikenx, ~, ~] = conditionalspikesfunc(torquewordcolumn, words, j, g); % this function identifies the spiking words that identify with the torquewords
-            
-            conditionalentropy = 0;
-            conditionalentropysml1 = 0;
-            for f = 1:length(countofspikekx)% this is where the estimation happens
-                 if isequal(countofspikekx{f} == 1, ones(length(countofspikekx{f}))) && isequal(countofspikenx{f} == 1, ones(length(countofspikenx{f})))
-                     S_nsbword = 0;
-                     S_ml1 = 0;
-                 else
-                     Knew = 24360;
-                    [S_nsbword, dS_nsbword, ~, ~, ~, S_ml1, ~] = find_nsb_entropy(countofspikekx{f}, countofspikenx{f}, Knew, .1, 1);
-                 end
-                tempstdvec = tempstdvec + ((dS_nsbword)^2)*probdist(f);%standard deviation calculation
-                conditionalentropy = conditionalentropy+S_nsbword*probdist(f);
-                conditionalentropysml1 = conditionalentropysml1+S_ml1*probdist(f);
+            for jj = 1:repeats
+                tempstdvec = 0;
+                [probdist, torquewordcolumn] = torquebreakups(j, Y);%this function just splits up the torque into j bins and then uses that to create torque words
+                [countofspikekx, countofspikenx, ~, ~] = conditionalspikesfunc(torquewordcolumn, words, j, g); % this function identifies the spiking words that identify with the torquewords
                 
+                conditionalentropy = 0;
+                conditionalentropysml1 = 0;
+                for f = 1:length(countofspikekx)% this is where the estimation happens
+                     if isequal(countofspikekx{f} == 1, ones(length(countofspikekx{f}))) && isequal(countofspikenx{f} == 1, ones(length(countofspikenx{f})))
+                         S_nsbword = 0;
+                         S_ml1 = 0;
+                     else
+                         Knew = 24360;
+                        [S_nsbword, dS_nsbword, ~, ~, ~, S_ml1, ~] = find_nsb_entropy(countofspikekx{f}, countofspikenx{f}, Knew, .1, 1);
+                     end
+                    tempstdvec = tempstdvec + ((dS_nsbword)^2)*probdist(f); %standard deviation calculation
+                    conditionalentropy = conditionalentropy+S_nsbword*probdist(f);
+                    conditionalentropysml1 = conditionalentropysml1+S_ml1*probdist(f);
+                    
+                end
+                % Store everything
+                conditionalentropyvec_bias(count, jj) = conditionalentropy;
+                conditionalS_ml1vec_bias(count, jj) = conditionalentropysml1;
+                conditionaldS_nsbvec_bias(count, jj) = sqrt(tempstdvec);
             end
-            % Store everything
-            conditionalentropyvec(count) = conditionalentropy;
-            conditionalS_ml1vec(count) = conditionalentropysml1;
-            conditionaldS_nsbvec(count) = sqrt(tempstdvec);
-
         end
         count = count+1;
     end
     
     %converting everything to bits
-    S_nsbwordvec = S_nsbwordvec./log(2);
-    dS_nsbwordvec = dS_nsbwordvec./log(2);
-    S_ml1wordvec = S_ml1wordvec./log(2);
-    conditionalentropyvec = conditionalentropyvec./log(2);
-    conditionaldS_nsbvec = conditionaldS_nsbvec./log(2);
-    conditionalS_ml1vec = conditionalS_ml1vec./log(2);
+    conditionalentropyvec_bias = conditionalentropyvec_bias./log(2);
+    conditionalS_ml1vec_bias = conditionalS_ml1vec_bias./log(2);
+    conditionaldS_nsbvec_bias = conditionaldS_nsbvec_bias./log(2);
+    conditionvariance_bias = conditionaldS_nsbvec_bias.^2;
     toc
 end

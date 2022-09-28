@@ -4,8 +4,9 @@ load('KSG_data.mat')
 nmoths = 7;
 nmuscles = 10;
 
-% deriv_thresh = -2e-3; % Derivative threshold
-deriv_thresh_scale = 0.2;
+savefigs = false;
+
+deriv_thresh_scale = 0.3; % Derivative threshold
 sg_ord = 2; % Savitsky-golay filter order
 sg_window = 11; % Savitsky-golay filter window length
 [b,g] = sgolay(sg_ord, sg_window);
@@ -95,7 +96,9 @@ plot(log10(noise(deriv_prec_ind)), grad(deriv_prec_ind), 'r.', 'MarkerSize', 15)
 xlabel('log_1_0(r_c (ms))')
 ylabel('Derivative of MI (a.u.)')
 
-exportgraphics(gcf,fullfile('figures','KSG_precision_methods.pdf'),'ContentType','vector')
+if savefigs
+    exportgraphics(gcf,fullfile('figures','KSG_precision_methods.pdf'),'ContentType','vector')
+end
 
 % Precision values
 % Original method
@@ -170,4 +173,6 @@ h_deriv
 p_deriv
 h_intersect
 p_intersect
-exportgraphics(gcf,fullfile('figures','KSG_precision_methods_distributions.pdf'),'ContentType','vector')
+if savefigs
+    exportgraphics(gcf,fullfile('figures','KSG_precision_methods_distributions.pdf'),'ContentType','vector')
+end
