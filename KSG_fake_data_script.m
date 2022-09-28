@@ -163,35 +163,46 @@ end
 % Save results
 save('KSG_sim_synthetic_data_fixed_precision.mat', 'MI_synth', ...
     'noise', 'repeats', 'knn', 'corr', 'repeats_at_corr', 'num_points', 'correlation')
+%%
 
+deriv_thresh_scale = 0.4;
 
-deriv_thresh_scale = 0.3;
+thresh_scale = linspace(0.2, 0.7, 100);
+err = zeros(size(thresh_scale));
 
-% Plot a priori precision vs actual
-% Find actual precision
-synth_precision = zeros(ncorr, repeats_at_corr, n);
-for i = 1:ncorr
-    for j = 1:repeats_at_corr
-        for k = 1:n
-            pad = [nan(1, sg_window), mean(MI_synth{i,j,k}, 2)', nan(1, sg_window)];
-            grad = conv(pad, -1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            deriv_thresh = min(grad) * deriv_thresh_scale;
-            ind = find(grad < deriv_thresh, 1);
-            synth_precision(i,j,k) = noise(ind);
+for ii = 1:length(thresh_scale)
+    deriv_thresh_scale = thresh_scale(ii);
+    % Plot a priori precision vs actual
+    % Find actual precision
+    synth_precision = zeros(ncorr, repeats_at_corr, n);
+    for i = 1:ncorr
+        for j = 1:repeats_at_corr
+            for k = 1:n
+                pad = [nan(1, sg_window), mean(MI_synth{i,j,k}, 2)', nan(1, sg_window)];
+                grad = conv(pad, -1 * g(:,2), 'same'); 
+                grad = grad(sg_window+1:end-sg_window);
+                deriv_thresh = min(grad) * deriv_thresh_scale;
+                ind = find(grad < deriv_thresh, 1);
+                synth_precision(i,j,k) = noise(ind);
+            end
         end
     end
+    synth_precision = reshape(synth_precision, [ncorr*repeats_at_corr, n]);
+
+    err(ii) = sqrt(sum((synth_precision-prec_levels).^2, 'all'));
 end
-synth_precision = reshape(synth_precision, [ncorr*repeats_at_corr, n]);
 
 figure
-hold on
-for i = 1:ncorr*repeats_at_corr
-        plot(prec_levels, synth_precision(i,:), '*')
-end
-plot(get(gca, 'xlim'), get(gca,'xlim'), 'k-')
-xlabel('A priori precision')
-ylabel('Observed precision')
+plot(thresh_scale, err)
+
+% figure
+% hold on
+% for i = 1:ncorr*repeats_at_corr
+%         plot(prec_levels, synth_precision(i,:), '*')
+% end
+% plot(get(gca, 'xlim'), get(gca,'xlim'), 'k-')
+% xlabel('A priori precision')
+% ylabel('Observed precision')
 
 
 
