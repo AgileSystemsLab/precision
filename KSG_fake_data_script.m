@@ -265,18 +265,43 @@ end
 % Actually find precision for both real and synthetic fixed datasets
 load('KSG_sim_real_data_fixed_precision.mat')
 load('KSG_sim_synthetic_data_fixed_precision.mat')
-deriv_thresh_scale = 0.38687;
+% deriv_thresh_scale = 0.38687;
+deriv_thresh_scale = 0.2;
+% deriv_thresh = -0.02;
+sg_ord = 2; % Savitsky-golay filter order
+sg_window = 13; % Savitsky-golay filter window length
+[b,g] = sgolay(sg_ord, sg_window);
 % Real
+figure
+hold on
 precision_real = zeros(nmoths, nmuscles, n);
 for i = 1:nmoths
     for j = 1:nmuscles
         for k = 1:n
             meanMI = mean(MI_disc{i,j,k}, 2);
+%             meanMI = meanMI / range(meanMI);
+            % initial MI drop from 0 noise to some noise throws off derivative estimation, smooth out
+            meanMI(1) = meanMI(2); 
+%             halfwindow = (sg_window-1)/2;
+%             firstvals = flipud(meanMI(1) - abs(meanMI(1:halfwindow+1) - meanMI(1)));
+%             lastvals = flipud(meanMI(end) + abs(meanMI(end-halfwindow:end) - meanMI(end)));
+%             pad = [firstvals; meanMI; lastvals]';
+
             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
             grad = conv(pad, -1 * g(:,2), 'same'); 
             grad = grad(sg_window+1:end-sg_window);
-            deriv_thresh = min(grad) * deriv_thresh_scale;
-            ind = find(grad < deriv_thresh, 1);
+
+            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+            dgrad = dgrad(sg_window+1:end-sg_window);
+            [~,ind] = min(dgrad);
+
+%             meanMI = meanMI / max(meanMI);
+%             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
+%             grad = conv(pad, -1 * g(:,2), 'same'); 
+%             grad = grad(sg_window+1:end-sg_window);
+%             deriv_thresh = min(grad) * deriv_thresh_scale;
+%             ind = find(grad < deriv_thresh, 1);
             precision_real(i,j,k) = noise(ind);
         end
     end
@@ -287,12 +312,28 @@ for i = 1:ncorr
     for j = 1:repeats_at_corr
         for k = 1:n
             meanMI = mean(MI_synth{i,j,k}, 2);
+            meanMI(1) = meanMI(2); 
+            meanMI = meanMI / max(meanMI);
             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
             grad = conv(pad, -1 * g(:,2), 'same'); 
             grad = grad(sg_window+1:end-sg_window);
-            deriv_thresh = min(grad) * deriv_thresh_scale;
-            ind = find(grad < deriv_thresh, 1);
-            precision_synth(i,j,k) = noise(ind);
+            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+            dgrad = dgrad(sg_window+1:end-sg_window);
+%             deriv_thresh = min(grad) * deriv_thresh_scale;
+%             ind = find(grad < deriv_thresh, 1);
+            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', 0.3);
+            if isempty(inds)
+                [~,ind] = min(dgrad);
+                precision_synth(i,j,k) = noise(ind);
+            else
+                precision_synth(i,j,k) = noise(inds(1));
+            end
+            plot(dgrad/min(dgrad), 'color', cols(k,:))
+            if (i == 1) && (j == 1)
+                [~,ind] = min(abs(prec_levels(k) - noise));
+                xline(ind, 'color', cols(k,:))
+            end
         end
     end
 end
@@ -330,7 +371,7 @@ title('KSG, Synthetic dataset')
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
 
-exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
+% exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
 
 %% Example of MI vs noise at different 
 
@@ -356,6 +397,10 @@ for k = 1:n
     ind = find(grad < deriv_thresh, 1);
     plot(log10(noise(ind)), meanMI(ind), '.', 'color', cols(k,:), 'MarkerSize', 25)
     plot(log10(noise(ind)), meanMI(ind), 'k.', 'MarkerSize', 15)
+    if k == 1
+        bob = grad;
+        jim = meanMI;
+    end
 
 end
 
