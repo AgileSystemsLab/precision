@@ -279,13 +279,8 @@ for i = 1:nmoths
     for j = 1:nmuscles
         for k = 1:n
             meanMI = mean(MI_disc{i,j,k}, 2);
-%             meanMI = meanMI / range(meanMI);
             % initial MI drop from 0 noise to some noise throws off derivative estimation, smooth out
             meanMI(1) = meanMI(2); 
-%             halfwindow = (sg_window-1)/2;
-%             firstvals = flipud(meanMI(1) - abs(meanMI(1:halfwindow+1) - meanMI(1)));
-%             lastvals = flipud(meanMI(end) + abs(meanMI(end-halfwindow:end) - meanMI(end)));
-%             pad = [firstvals; meanMI; lastvals]';
 
             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
             grad = conv(pad, -1 * g(:,2), 'same'); 
@@ -294,15 +289,13 @@ for i = 1:nmoths
             dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
             dgrad = conv(dpad, -1 * g(:,2), 'same'); 
             dgrad = dgrad(sg_window+1:end-sg_window);
-            [~,ind] = min(dgrad);
-
-%             meanMI = meanMI / max(meanMI);
-%             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-%             grad = conv(pad, -1 * g(:,2), 'same'); 
-%             grad = grad(sg_window+1:end-sg_window);
-%             deriv_thresh = min(grad) * deriv_thresh_scale;
-%             ind = find(grad < deriv_thresh, 1);
-            precision_real(i,j,k) = noise(ind);
+            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', 0.5);
+            if isempty(inds)
+                [~,ind] = min(dgrad);
+                precision_real(i,j,k) = noise(ind);
+            else
+                precision_real(i,j,k) = noise(inds(1));
+            end
         end
     end
 end
