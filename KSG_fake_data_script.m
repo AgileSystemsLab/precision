@@ -2,7 +2,7 @@ rng('shuffle')
 % Controls
 do_long_runs = false;
 do_threshold_finding = false;
-do_method_comparison = false;
+do_method_comparison = true;
 
 % Main constants
 nmoths = 7;
@@ -230,8 +230,8 @@ if do_method_comparison
     ylim([0, 5])
     plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
     title('STD Threshold Method')
-    xlabel('A priori precision (ms)')
-    ylabel('Actual precision (ms)')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
     % Derivative method
     nexttile()
     hold on
@@ -242,8 +242,8 @@ if do_method_comparison
     ylim([0, 5])
     plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
     title('Derivative Method')
-    xlabel('A priori precision (ms)')
-    ylabel('Actual precision (ms)')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
     % Two line method
     nexttile()
     hold on
@@ -254,124 +254,158 @@ if do_method_comparison
     ylim([0, 5])
     plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
     title('Line Intersection Method')
-    xlabel('A priori precision (ms)')
-    ylabel('Actual precision (ms)')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
     % Save 
     exportgraphics(gcf,fullfile('figures','KSG_precision_methods_simulations.pdf'),'ContentType','vector')
 end
 
 
-% %% Distributions of precision at specific known levels
-% % Actually find precision for both real and synthetic fixed datasets
-% load('KSG_sim_real_data_fixed_precision.mat')
-% load('KSG_sim_synthetic_data_fixed_precision.mat')
-% % deriv_thresh_scale = 0.38687;
-% deriv_thresh_scale = 0.5;
-% s = 5; % how many samples on each side to fit line to
-% x = log10(noise);
-% % Real
-% precision_real = zeros(nmoths, nmuscles, n);
-% for i = 1:nmoths
-%     for j = 1:nmuscles
-%         for k = 1:n
-%             meanMI = mean(MI_disc{i,j,k}, 2);
-% %             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-% %             grad = conv(pad, -1 * g(:,2), 'same'); 
-% %             grad = grad(sg_window+1:end-sg_window);
-% %             deriv_thresh = min(grad) * deriv_thresh_scale;
-% %             ind = find(grad < deriv_thresh, 1);
-% %             precision_real(i,j,k) = noise(ind);
-%             % twoline
-%             v = pca([x(2:s+1)' meanMI(2:s+1)]);
-%             beta = v(2,1)/v(1,1);
-%             int = mean(meanMI(2:s+1)) - beta * mean(x(2:s+1));
-%             lbeta = [beta, int];
-%             v = pca([x(end-s:end)' meanMI(end-s:end)]);
-%             beta = v(2,1)/v(1,1);
-%             int = mean(meanMI(end-s:end)) - beta * mean(x(end-s:end));
-%             rbeta = [beta, int];
-%             precision_real(i,j,k) = 10^((rbeta(2) - lbeta(2)) / (lbeta(1) - rbeta(1)));
-%         end
-%     end
-% end
-% % Synthetic
-% precision_synth = zeros(ncorr, repeats_at_corr, n);
-% for i = 1:ncorr
-%     for j = 1:repeats_at_corr
-%         for k = 1:n
-%             meanMI = mean(MI_synth{i,j,k}, 2);
-% %             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-% %             grad = conv(pad, -1 * g(:,2), 'same'); 
-% %             grad = grad(sg_window+1:end-sg_window);
-% %             deriv_thresh = min(grad) * deriv_thresh_scale;
-% %             ind = find(grad < deriv_thresh, 1);
-% %             precision_synth(i,j,k) = noise(ind);
-%             % twoline
-%             v = pca([x(2:s+1)' meanMI(2:s+1)]);
-%             beta = v(2,1)/v(1,1);
-%             int = mean(meanMI(2:s+1)) - beta * mean(x(2:s+1));
-%             lbeta = [beta, int];
-%             v = pca([x(end-s:end)' meanMI(end-s:end)]);
-%             beta = v(2,1)/v(1,1);
-%             int = mean(meanMI(end-s:end)) - beta * mean(x(end-s:end));
-%             rbeta = [beta, int];
-%             precision_synth(i,j,k) = 10^((rbeta(2) - lbeta(2)) / (lbeta(1) - rbeta(1)));
-%         end
-%     end
-% end
-% % Reshape both for ease of plotting
-% precision_real = reshape(precision_real, [nmoths*nmuscles, n]);
-% precision_synth = reshape(precision_synth, [ncorr*repeats_at_corr, n]);
-% 
-% 
-% % Real dataset plot
-% figure
-% hold on
-% col = '#4472C4';
-% errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
-%     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
-%     'LineWidth', 1, 'CapSize', 13)
-% plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-% title('Precision-controlled real dataset')
-% xlabel('A priori precision (ms)')
-% ylabel('Actual precision')
-% % Synthetic dataset plot
-% figure
-% hold on
-% col = '#4472C4';
-% errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ...
-%     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
-%     'LineWidth', 1, 'CapSize', 13)
-% plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-% title('Precision-controlled synthetic dataset')
-% xlabel('A priori precision (ms)')
-% ylabel('Actual precision')
-% 
-% 
-% 
-% % 
-% % figure
-% % hold on
-% % for i = 1:nmoths
-% %     for j = 1:nmuscles
-% %         plot(prec_levels, deriv_precision{i,j}, '*')
-% %     end
-% % end
-% % plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-% % xlabel('A priori precision (ms)')
-% % ylabel('Measured precision (ms)')
-% 
-% 
-% 
-% % figure
-% % hold on
-% % for i = 1:ncorr*repeats_at_corr
-% %         plot(prec_levels, synth_precision(i,:), '*')
-% % end
-% % plot(get(gca, 'xlim'), get(gca,'xlim'), 'k-')
-% % xlabel('A priori precision')
-% % ylabel('Observed precision')
-% 
-% 
-% 
-% 
+%% Distributions of precision at specific known levels
+% Actually find precision for both real and synthetic fixed datasets
+load('KSG_sim_real_data_fixed_precision.mat')
+load('KSG_sim_synthetic_data_fixed_precision.mat')
+deriv_thresh_scale = 0.38687;
+% Real
+precision_real = zeros(nmoths, nmuscles, n);
+for i = 1:nmoths
+    for j = 1:nmuscles
+        for k = 1:n
+            meanMI = mean(MI_disc{i,j,k}, 2);
+            pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
+            grad = conv(pad, -1 * g(:,2), 'same'); 
+            grad = grad(sg_window+1:end-sg_window);
+            deriv_thresh = min(grad) * deriv_thresh_scale;
+            ind = find(grad < deriv_thresh, 1);
+            precision_real(i,j,k) = noise(ind);
+        end
+    end
+end
+% Synthetic
+precision_synth = zeros(ncorr, repeats_at_corr, n);
+for i = 1:ncorr
+    for j = 1:repeats_at_corr
+        for k = 1:n
+            meanMI = mean(MI_synth{i,j,k}, 2);
+            pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
+            grad = conv(pad, -1 * g(:,2), 'same'); 
+            grad = grad(sg_window+1:end-sg_window);
+            deriv_thresh = min(grad) * deriv_thresh_scale;
+            ind = find(grad < deriv_thresh, 1);
+            precision_synth(i,j,k) = noise(ind);
+        end
+    end
+end
+% Reshape both for ease of plotting
+precision_real = reshape(precision_real, [nmoths*nmuscles, n]);
+precision_synth = reshape(precision_synth, [ncorr*repeats_at_corr, n]);
+
+
+figure('OuterPosition', [1007, 234, 280, 610])
+col = '#4472C4';
+t = tiledlayout(2, 1);
+
+% Real dataset plot
+nexttile()
+hold on
+errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
+    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+    'LineWidth', 1, 'CapSize', 13)
+xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+ylim([0, 5])
+plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+title('KSG, Real dataset')
+xlabel('Actual precision (ms)')
+ylabel('Measured precision (ms)')
+% Synthetic dataset plot
+nexttile()
+hold on
+errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ...
+    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+    'LineWidth', 1, 'CapSize', 13)
+xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+ylim([0, 5])
+plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+title('KSG, Synthetic dataset')
+xlabel('Actual precision (ms)')
+ylabel('Measured precision (ms)')
+
+exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
+
+%% Example of MI vs noise at different 
+
+load('KSG_data.mat')
+deriv_thresh_scale = 0.38687;
+
+i = 3; % moth
+j = 3; % muscle
+
+figure 
+hold on
+cols = copper(n);
+mseb(log10(noise), mean(MI{i,j}, 2), std(MI{i,j}, 0, 2)');
+for k = 1:n
+    meanMI = mean(MI_disc{i,j,k}, 2);
+    mseb(log10(noise), meanMI, std(MI_disc{i,j,k}, 0, 2)', ...
+        struct('col', {{cols(k,:)}}), 1)
+    % Get precision (I know it's stored somewhere but this is faster to write)
+    pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
+    grad = conv(pad, -1 * g(:,2), 'same'); 
+    grad = grad(sg_window+1:end-sg_window);
+    deriv_thresh = min(grad) * deriv_thresh_scale;
+    ind = find(grad < deriv_thresh, 1);
+    plot(log10(noise(ind)), meanMI(ind), '.', 'color', cols(k,:), 'MarkerSize', 25)
+    plot(log10(noise(ind)), meanMI(ind), 'k.', 'MarkerSize', 15)
+
+end
+
+
+%% Example of synthetic data plot
+
+muX = 0;         %X mean of the bivariate gaussian
+muY = 0;         %Y mean of the bivariate gaussian
+sigmaX = 2;      %X standard deviation   
+sigmaY = 2;      %Y standard deviation
+%generate a correlated X and Y
+x1 = normrnd(0, 1, num_points, 1);
+x2 = normrnd(0, 1, num_points, 1);
+
+figure('outerposition', [841, 455, 700, 350])
+ax = gobjects(1, 2);
+cols = parula(ncorr+1);
+hspacing = 0.15;
+
+ax(1) = subaxis(1, 2 , 1, 'SpacingHoriz', hspacing);
+ax(1).Box = 'off';
+hold on
+for i = 1:ncorr
+    x3 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* x2;
+    synthX = muX + x1 * sigmaX;
+    synthY = muY + x3 * sigmaY;
+
+    plot(synthX, synthY, '.', 'color', cols(i,:))
+end
+xlabel('X', 'FontWeight', 'bold', 'FontSize', 12)
+ylabel('Y', 'FontWeight', 'bold', 'FontSize', 12)
+set(get(gca, 'Ylabel'), 'Rotation', 0)
+xlim([-7, 7])
+[~,leg] = legend(arrayfun(@(x) ['\rho = ',num2str(x)], corr, 'UniformOutput', false), 'location', 'southeast');
+set(findobj(leg, '-property', 'MarkerSize'), 'MarkerSize', 13)
+
+ax(2) = subaxis(1, 2 , 2, 'SpacingHoriz', hspacing);
+ax(2).Box = 'off';
+hold on
+for i = 1:ncorr
+    x3 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* x2;
+    synthX = muX + x1 * sigmaX;
+    synthY = muY + x3 * sigmaY;
+
+    synthX_disc = round(synthX / 1) * 1;
+    plot(synthX_disc, synthY, '.', 'color', cols(i,:))
+end
+xlabel('Precision-fixed X', 'FontWeight', 'bold', 'FontSize', 12)
+ylabel('Y', 'FontWeight', 'bold', 'FontSize', 12)
+set(get(gca, 'Ylabel'), 'Rotation', 0)
+xlim([-7, 7])
+
+exportgraphics(gcf,fullfile('figures','simulations_example_gaussian.pdf'),'ContentType','vector')
