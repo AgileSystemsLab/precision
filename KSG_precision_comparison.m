@@ -6,7 +6,8 @@ nmuscles = 10;
 
 savefigs = true;
 
-deriv_thresh_scale = 0.38687; % Derivative threshold
+min_peak_height = 0.27;
+min_peak_dist = 20;
 sg_ord = 2; % Savitsky-golay filter order
 sg_window = 11; % Savitsky-golay filter window length
 [b,g] = sgolay(sg_ord, sg_window);
@@ -43,8 +44,10 @@ title('STD Threshold Method')
 pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
 grad = conv(pad, -1 * g(:,2), 'same'); 
 grad = grad(sg_window+1:end-sg_window);
-deriv_thresh = min(grad) * deriv_thresh_scale;
-deriv_prec_ind = find(grad < deriv_thresh, 1);
+dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+dgrad = dgrad(sg_window+1:end-sg_window);
+[~,deriv_prec_ind] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
 % regular MI vs noise
 nexttile([1,1])
 hold on
@@ -84,15 +87,19 @@ title('Line Intersection Method')
 % Derivative of MI vs noise (down here because nexttile is dumb)
 nexttile([1,1])
 hold on
-plot(log10(noise), -grad/min(grad), 'Color', '#2D427E')
-yline(-deriv_thresh_scale, 'LineWidth', 2)
-plot(log10(noise(deriv_prec_ind)), -grad(deriv_prec_ind)/min(grad), 'r.', 'MarkerSize', 15)
+plot(log10(noise), -dgrad/min(dgrad), 'Color', '#2D427E')
+yline(-min_peak_height, '--', 'LineWidth', 2, 'color', [0.75, 0.75, 0.75])
+drawArrow = @(x,y) quiver(x(1), y(1), x(2)-x(1), y(2)-y(1), ...
+    0, 'color', [0.75, 0.75, 0.75], 'LineWidth', 2, 'MaxHeadSize', 1);
+drawArrow([-0.75, -0.75], [-min_peak_height, -min_peak_height-0.3])
+plot(log10(noise(deriv_prec_ind)), -dgrad(deriv_prec_ind)/min(dgrad), 'r.', 'MarkerSize', 15)
 xlabel('log_1_0(r_c (ms))')
-ylabel('d MI / d r_c (a.u.)')
+ylabel('d^2 MI / d r_c^2 (a.u.)')
 
 if savefigs
     exportgraphics(gcf,fullfile('figures','KSG_precision_methods.pdf'),'ContentType','vector')
 end
+
 
 % Precision values
 % Original method
@@ -106,18 +113,27 @@ for i = 1:nmoths
     fields = fieldnames(time_data);
     for j = 1:nmuscles
         meanMI = mean(MI{i,j}, 2);
+        % STD method
         mis = MI_KSG_subsampling_multispike(time_data.(fields{j}), Tz_WSd, knn, (1:10));
         mi_sd = findMI_KSG_stddev(mis, size(time_data.(fields{j}), 1), false);
         precision_ind = find(meanMI < ((MI{i,j}(1,1) - mi_sd)), 1);
         precision(i,j) = noise(precision_ind);
-        % Alternative ways to find precision
-        % Get smooth derivative of MI, find where passes threshold
+        % Get smooth 2nd derivative of dMI/dnoise, find first peak 
+        % initial MI drop from 0-some noise throws off derivative estimation, smooth out
+        meanMI(1) = meanMI(2); 
         pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
         grad = conv(pad, -1 * g(:,2), 'same'); 
         grad = grad(sg_window+1:end-sg_window);
-        deriv_thresh = min(grad) * deriv_thresh_scale;
-        deriv_prec_ind = find(grad < deriv_thresh, 1);
-        deriv_precision(i,j) = noise(deriv_prec_ind);
+        dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+        dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+        dgrad = dgrad(sg_window+1:end-sg_window);
+        [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
+        if isempty(inds)
+            [~,ind] = min(dgrad);
+            deriv_precision(i,j) = noise(ind);
+        else
+            deriv_precision(i,j) = noise(inds(1));
+        end
         % Two-line orthogonal regression meeting point
         v = pca([x(2:s+1)' meanMI(2:s+1)]);
         beta = v(2,1)/v(1,1);
