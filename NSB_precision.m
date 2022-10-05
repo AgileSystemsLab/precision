@@ -16,13 +16,12 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
     end
     tic
 
-    
-    %This next section sets up all the different data storage vectors
+    K = 24360; %large K, feel free to vary, I did not observe any changes -Tobias
+    % Preallocate
     conditionalentropyvec = zeros(1, nspikingbins);
     conditionalS_ml1vec = zeros(1, nspikingbins);
     conditionaldS_nsbvec = zeros(1, nspikingbins);
     
-    errorcodevec = zeros(1, nspikingbins);
     S_nsbwordvec = zeros(1, nspikingbins);
     S_ml1wordvec = zeros(1, nspikingbins);
     dS_nsbwordvec = zeros(1, nspikingbins);
@@ -75,6 +74,32 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
             mask = ismember(wordarray,newwords(o,:),'rows');
             words(mask) = o;
         end
+
+        nx = [];%different counts in bins
+%             K = max(words)-min(words); %number of different counts
+        kxword = []; %counts in different counts
+        for u = min(words):max(words)
+            kxword = [kxword, sum(words == u)];
+        end
+        countofvectors = kxword;
+        kxword = [];
+        vectorofcounts = min(countofvectors):max(countofvectors);
+        for u = vectorofcounts
+            nx = [nx, sum(countofvectors == u)];
+            kxword = [kxword, sum(countofvectors(countofvectors == u))];
+        end
+        mask = nx == 0;
+        nx(mask) = [];
+        kxword(mask) = [];
+        mask = (kxword == 0);
+        nx(mask) = [];
+        kxword(mask) = [];
+
+
+        [S_nsbword, dS_nsbword, ~, ~, ~, S_ml1word, ~] = find_nsb_entropy (nx, kxword, K, .1, 1); %input names are reversed here
+        S_nsbwordvec(count) = S_nsbword;
+        S_ml1wordvec(count) = S_ml1word;
+        dS_nsbwordvec(count) = dS_nsbword;
         
         for j = ntorquebins %this is where the word spikes are split into torque words
             tempstdvec = 0;
@@ -88,8 +113,7 @@ function [S_nsbwordvec, dS_nsbwordvec, S_ml1wordvec, conditionalentropyvec, cond
                      S_nsbword = 0;
                      S_ml1 = 0;
                  else
-                     Knew = 24360;
-                    [S_nsbword, dS_nsbword, ~, ~, ~, S_ml1, ~] = find_nsb_entropy(countofspikekx{f}, countofspikenx{f}, Knew, .1, 1);
+                    [S_nsbword, dS_nsbword, ~, ~, ~, S_ml1, ~] = find_nsb_entropy(countofspikekx{f}, countofspikenx{f}, K, .1, 1);
                  end
                 tempstdvec = tempstdvec + ((dS_nsbword)^2)*probdist(f);%standard deviation calculation
                 conditionalentropy = conditionalentropy+S_nsbword*probdist(f);
