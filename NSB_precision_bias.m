@@ -75,7 +75,7 @@ function [conditionalentropyvec_bias, conditionalS_ml1vec_bias, conditionaldS_ns
         for j = ntorquebins %this is where the word spikes are split into torque words
             for jj = 1:repeats
                 tempstdvec = 0;
-                [probdist, torquewordcolumn] = torquebreakups(j, Y);%this function just splits up the torque into j bins and then uses that to create torque words
+                [probdist, torquewordcolumn] = torquebreakups(j, Y(randperm(length(Y)),:));%this function just splits up the torque into j bins and then uses that to create torque words
                 [countofspikekx, countofspikenx, ~, ~] = conditionalspikesfunc(torquewordcolumn, words, j, g); % this function identifies the spiking words that identify with the torquewords
                 
                 conditionalentropy = 0;
@@ -102,7 +102,7 @@ function [conditionalentropyvec_bias, conditionalS_ml1vec_bias, conditionaldS_ns
         count = count+1;
     end
     
-    %converting everything to bits
+    % Convert everything to bits
     conditionalentropyvec_bias = conditionalentropyvec_bias./log(2);
     conditionalS_ml1vec_bias = conditionalS_ml1vec_bias./log(2);
     conditionaldS_nsbvec_bias = conditionaldS_nsbvec_bias./log(2);
