@@ -17,9 +17,9 @@ function [conditionalentropyvec_bias, conditionalS_ml1vec_bias, conditionaldS_ns
     tic
     
     %This next section sets up all the different data storage vectors
-    conditionalentropyvec_bias = zeros(nspikingbins, repeats);
-    conditionalS_ml1vec_bias = zeros(nspikingbins, repeats);
-    conditionaldS_nsbvec_bias = zeros(nspikingbins, repeats);
+    conditionalentropyvec_bias = zeros(repeats, nspikingbins);
+    conditionalS_ml1vec_bias = zeros(repeats, nspikingbins);
+    conditionaldS_nsbvec_bias = zeros(repeats, nspikingbins);
 
     
     binsizevec = [];
@@ -94,9 +94,9 @@ function [conditionalentropyvec_bias, conditionalS_ml1vec_bias, conditionaldS_ns
                     
                 end
                 % Store everything
-                conditionalentropyvec_bias(count, jj) = conditionalentropy;
-                conditionalS_ml1vec_bias(count, jj) = conditionalentropysml1;
-                conditionaldS_nsbvec_bias(count, jj) = sqrt(tempstdvec);
+                conditionalentropyvec_bias(jj, count) = conditionalentropy;
+                conditionalS_ml1vec_bias(jj, count) = conditionalentropysml1;
+                conditionaldS_nsbvec_bias(jj, count) = sqrt(tempstdvec);
             end
         end
         count = count+1;
