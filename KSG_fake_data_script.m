@@ -13,6 +13,8 @@ noise = [0, logspace(log10(0.05), log10(10), 150)];
 repeats = 150;
 prec_levels = 1:0.5:4;
 n = length(prec_levels);
+% STD method
+nsubsets = 6; % how many subsets to split data into to estimate STD at zero noise
 % Derivative method 
 min_peak_height = 0.23535;
 min_peak_dist = 10;
@@ -98,53 +100,56 @@ if do_long_runs_synth_dataset
 end
 
 %% Find optimal derivative threshold
-min_peak_dist = 20;
 if do_threshold_finding
     load('KSG_sim_real_data_fixed_precision.mat')
     load('KSG_sim_synthetic_data_fixed_precision.mat')
     thresh_scale = linspace(0.2, 0.7, 100);
     min_peak_dist_vec = [5, 10, 20, 30];
-%     %------ Real dataset
-%     err = zeros(size(thresh_scale));
-%     % Loop over different derivative thresholds
-%     for ii = 1:length(thresh_scale)
-%         min_peak_height = thresh_scale(ii);
-%         deriv_precision = cell(nmoths, nmuscles);
-%         deriv_precision(:) = {nan(1, n)};
-%         for i = 1:nmoths
-%             for j = 1:nmuscles
-%                 for k = 1:n
-%                     meanMI = mean(MI_disc{i,j,k}, 2);
-%                     meanMI(1) = meanMI(2); 
-%                     pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-%                     grad = conv(pad, -1 * g(:,2), 'same'); 
-%                     grad = grad(sg_window+1:end-sg_window);
-%                     dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-%                     dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-%                     dgrad = dgrad(sg_window+1:end-sg_window);
-%                     [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-%                     if isempty(inds)
-%                         [~,ind] = min(dgrad);
-%                         deriv_precision{i,j}(k) = noise(ind);
-%                     else
-%                         deriv_precision{i,j}(k) = noise(inds(1));
-%                     end
-%                 end
-%             end
-%         end
-%         err(ii) = sqrt(sum(cellfun(@(x) sum((x - prec_levels).^2), deriv_precision), 'all'));
-%     end
-%     % Real data plot 
-%     figure
-%     hold on
-%     plot(thresh_scale, err)
-%     [~,ind] = min(err);
-%     plot(thresh_scale(ind), err(ind), 'r.', 'markersize', 25)
-%     text(0.35, 0.4, ['Optimal threshold = ', num2str(thresh_scale(ind))], 'units', 'normalized')
-%     title('Real dataset with controlled precision')
-%     xlabel('Derivative threshold')
-%     ylabel('Sum of squared errors')
-%     exportgraphics(gcf,fullfile('figures','threshold_finding_realdataset.pdf'),'ContentType','vector')
+    %------ Real dataset
+    err = zeros(size(thresh_scale));
+    figure
+    hold on
+    cols = copper(length(min_peak_dist_vec));
+    for jj = 1:length(min_peak_dist_vec)
+        min_peak_dist = min_peak_dist_vec(jj);
+        % Loop over different derivative thresholds
+        for ii = 1:length(thresh_scale)
+            min_peak_height = thresh_scale(ii);
+            deriv_precision = cell(nmoths, nmuscles);
+            deriv_precision(:) = {nan(1, n)};
+            for i = 1:nmoths
+                for j = 1:nmuscles
+                    for k = 1:n
+                        meanMI = mean(MI_disc{i,j,k}, 2);
+                        meanMI(1) = meanMI(2); 
+                        pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
+                        grad = conv(pad, -1 * g(:,2), 'same'); 
+                        grad = grad(sg_window+1:end-sg_window);
+                        dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+                        dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+                        dgrad = dgrad(sg_window+1:end-sg_window);
+                        [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
+                        if isempty(inds)
+                            [~,ind] = min(dgrad);
+                            deriv_precision{i,j}(k) = noise(ind);
+                        else
+                            deriv_precision{i,j}(k) = noise(inds(1));
+                        end
+                    end
+                end
+            end
+            err(ii) = sqrt(sum(cellfun(@(x) sum((x - prec_levels).^2), deriv_precision), 'all'));
+        end
+        % Real data plot 
+        plot(thresh_scale, err, 'color', cols(jj,:))
+        [~,ind] = min(err);
+        plot(thresh_scale(ind), err(ind), 'r.', 'markersize', 25)
+        text(0.35, 0.4, ['Optimal threshold = ', num2str(thresh_scale(ind))], 'units', 'normalized')
+    end
+    title('Real dataset with controlled precision')
+    xlabel('Derivative threshold')
+    ylabel('Sum of squared errors')
+    exportgraphics(gcf,fullfile('figures','threshold_finding_realdataset.pdf'),'ContentType','vector')
 
     %------ Synthetic dataset
     err = zeros(size(thresh_scale));
@@ -187,10 +192,10 @@ if do_threshold_finding
         [~,ind] = min(err);
         plot(thresh_scale(ind), err(ind), 'r.', 'markersize', 25)
         text(0.35, 0.4, ['Optimal threshold = ', num2str(thresh_scale(ind))], 'units', 'normalized')
-        title('Synthetic dataset with controlled precision')
-        xlabel('Derivative threshold')
-        ylabel('Sum of squared errors')
     end
+    title('Synthetic dataset with controlled precision')
+    xlabel('Derivative threshold')
+    ylabel('Sum of squared errors')
 %     exportgraphics(gcf,fullfile('figures','threshold_finding_synthdataset.pdf'),'ContentType','vector')
 end
 
@@ -199,13 +204,15 @@ end
 % generated here so kept in this script for simplicity of running)
 
 if do_method_comparison
+    figure('outerposition', [440 366 1000 425])
+    t = tiledlayout(2, 3);
+    col = '#4472C4';
+    %--- Synthetic data
     load('KSG_sim_synthetic_data_fixed_precision.mat')
-
     muX = 0;         %X mean of the bivariate gaussian
     muY = 0;         %Y mean of the bivariate gaussian
     sigmaX = 2;      %X standard deviation   
     sigmaY = 2;      %Y standard deviation
-
     precision_std = zeros(ncorr, repeats_at_corr, n);
     precision_deriv = zeros(ncorr, repeats_at_corr, n);
     precision_twoline = zeros(ncorr, repeats_at_corr, n);
@@ -214,13 +221,16 @@ if do_method_comparison
             %generate a correlated X and Y
             x1 = normrnd(0, 1, num_points, 1);
             x2 = normrnd(0, 1, num_points, 1);
-            x3 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* x2;
+            x3 = normrnd(0, 1, num_points, 1);
+            x4 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* [x2, x3];
             synthX = muX + x1 * sigmaX;
-            synthY = muY + x3 * sigmaY;
+            synthY = muY + x4 * sigmaY;
+            % Loop over fixed precision levels
             for k = 1:n
                 meanMI = mean(MI_synth{i,j,k}, 2);
                 % STD method
-                mis = MI_KSG_subsampling_multispike(synthX, synthY, knn, (1:4));
+                synthX_disc = round(synthX / prec_levels(k)) * prec_levels(k);
+                mis = MI_KSG_subsampling_multispike(synthX_disc, synthY, knn, (1:nsubsets));
                 mi_sd = findMI_KSG_stddev(mis, size(synthY,1), false);
                 ind = find(meanMI < (MI_synth{i,j,k}(1,1) - mi_sd), 1);
                 if isempty(ind)
@@ -260,9 +270,6 @@ if do_method_comparison
     precision_deriv = reshape(precision_deriv, [ncorr*repeats_at_corr, n]);
     precision_twoline = reshape(precision_twoline, [ncorr*repeats_at_corr, n]);
     % Plot
-    figure('outerposition', [440 366 967 300])
-    t = tiledlayout(1, 3);
-    col = '#4472C4';
     % STD method
     nexttile()
     hold on
@@ -299,6 +306,93 @@ if do_method_comparison
     title('Line Intersection Method')
     xlabel('Actual precision (ms)')
     ylabel('Measured precision (ms)')
+
+    %--- Real data with fixed precision
+    load('KSG_sim_real_data_fixed_precision.mat');
+    precision_std_real = zeros(nmoths, nmuscles, n);
+    precision_deriv_real = zeros(nmoths, nmuscles, n);
+    precision_twoline_real = zeros(nmoths, nmuscles, n);
+    for i = 1:nmoths
+        load(fullfile('Data',['Moth',num2str(i),'_MIdata.mat']))
+        fields = fieldnames(time_data);
+        for j = 1:nmuscles
+            for k = 1:n
+                meanMI = mean(MI_disc{i,j,k}, 2);
+                % STD method
+                thisX = round(time_data.(fields{j}) / prec_levels(k)) * prec_levels(k);
+                mis = MI_KSG_subsampling_multispike(thisX, Tz_WSd, knn, (1:nsubsets));
+                mi_sd = findMI_KSG_stddev(mis, size(Tz_WSd,1), false);
+                ind = find(meanMI < (MI_disc{i,j,k}(1,1) - mi_sd), 1);
+                if isempty(ind)
+                    precision_std_real(i,j,k) = nan;
+                else
+                    precision_std_real(i,j,k) = noise(ind);
+                end
+                % Deriv method
+                pad = [nan(1, sg_window), meanMI(2)', meanMI(2:end)', nan(1, sg_window)];
+                grad = conv(pad, -1 * g(:,2), 'same'); 
+                grad = grad(sg_window+1:end-sg_window);
+                dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
+                dgrad = conv(dpad, -1 * g(:,2), 'same'); 
+                dgrad = dgrad(sg_window+1:end-sg_window);
+                [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
+                if isempty(inds)
+                    [~,ind] = min(dgrad);
+                    precision_deriv_real(i,j,k) = noise(ind);
+                else
+                    precision_deriv_real(i,j,k) = noise(inds(1));
+                end
+                % Two line method
+                v = pca([x(2:s+1)' meanMI(2:s+1)]);
+                beta = v(2,1)/v(1,1);
+                int = mean(meanMI(2:s+1)) - beta * mean(x(2:s+1));
+                lbeta = [beta, int];
+                v = pca([x(end-s:end)' meanMI(end-s:end)]);
+                beta = v(2,1)/v(1,1);
+                int = mean(meanMI(end-s:end)) - beta * mean(x(end-s:end));
+                rbeta = [beta, int];
+                precision_twoline_real(i,j,k) = 10^((rbeta(2) - lbeta(2)) / (lbeta(1) - rbeta(1)));
+            end
+        end
+    end
+    % Reshape for plotting
+    precision_std_real = reshape(precision_std_real, [nmoths*nmuscles, n]);
+    precision_deriv_real = reshape(precision_deriv_real, [nmoths*nmuscles, n]);
+    precision_twoline_real = reshape(precision_twoline_real, [nmoths*nmuscles, n]);
+    % Plot
+    % STD method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_std_real, 1), std(precision_std_real, 1), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
+    % Derivative method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_deriv_real, 1), std(precision_deriv_real, 1), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
+    % Two line method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_twoline_real, 1), std(precision_twoline_real, 1), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
     % Save 
     exportgraphics(gcf,fullfile('figures','KSG_precision_methods_simulations.pdf'),'ContentType','vector')
 end
@@ -308,16 +402,19 @@ end
 % Actually find precision for both real and synthetic fixed datasets
 load('KSG_sim_real_data_fixed_precision.mat')
 load('KSG_sim_synthetic_data_fixed_precision.mat')
-min_peak_height = 0.2;
+min_peak_height = 0.38;
 min_peak_dist = 5;
 
 sg_ord = 2; % Savitsky-golay filter order
 sg_window = 13; % Savitsky-golay filter window length
 [b,g] = sgolay(sg_ord, sg_window);
+
+muX = 0;         %X mean of the bivariate gaussian
+muY = 0;         %Y mean of the bivariate gaussian
+sigmaX = 2;      %X standard deviation   
+sigmaY = 2;      %Y standard deviation
+
 % Real
-figure
-hold on
-cols = copper(n);
 precision_real = zeros(nmoths, nmuscles, n);
 for i = 1:nmoths
     for j = 1:nmuscles
@@ -345,7 +442,24 @@ end
 precision_synth = zeros(ncorr, repeats_at_corr, n);
 for i = 1:ncorr
     for j = 1:repeats_at_corr
+        % Generate correlated X and Y
+        x1 = normrnd(0, 1, num_points, 1);
+        x2 = normrnd(0, 1, num_points, 1);
+        x3 = normrnd(0, 1, num_points, 1);
+        x4 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* [x2, x3];
+        synthX = muX + x1 * sigmaX;
+        synthY = muY + x4 * sigmaY;
         for k = 1:n
+            meanMI = mean(MI_synth{i,j,k}, 2);
+            synthX_disc = round(synthX / prec_levels(k)) * prec_levels(k);
+            mis = MI_KSG_subsampling_multispike(synthX_disc, synthY, knn, (1:nsubsets));
+            mi_sd = findMI_KSG_stddev(mis, size(synthY,1), false);
+            ind = find(meanMI < (MI_synth{i,j,k}(1,1) - mi_sd), 1);
+            if isempty(ind)
+                precision_std(i,j,k) = nan;
+            else
+                precision_std(i,j,k) = noise(ind);
+            end
             meanMI = mean(MI_synth{i,j,k}, 2);
             meanMI(1) = meanMI(2); 
             pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
@@ -360,11 +474,6 @@ for i = 1:ncorr
                 precision_synth(i,j,k) = noise(ind);
             else
                 precision_synth(i,j,k) = noise(inds(1));
-            end
-            plot(dgrad/min(dgrad), 'color', cols(k,:))
-            if (i == 1) && (j == 1)
-                [~,ind] = min(abs(prec_levels(k) - noise));
-                xline(ind, 'color', cols(k,:))
             end
         end
     end
@@ -403,7 +512,7 @@ title('KSG, Synthetic dataset')
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
 
-% exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
+exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
 
 %% Example of MI vs noise at different 
 
