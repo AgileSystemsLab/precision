@@ -4,14 +4,17 @@ load('KSG_data.mat')
 nmoths = 7;
 nmuscles = 10;
 
-savefigs = true;
+savefigs = false;
 
+% STD method constants
+nsubset = 10; % how many subsets of data to use to estimate STD at 0 noise
+% Derivative method constants
 min_peak_height = 0.27;
 min_peak_dist = 20;
 sg_ord = 2; % Savitsky-golay filter order
 sg_window = 11; % Savitsky-golay filter window length
 [b,g] = sgolay(sg_ord, sg_window);
-
+% Two line method constants
 s = 30; % how many samples on each side to fit line to
 
 
@@ -21,11 +24,11 @@ examp_muscle = 4;
 
 load(fullfile('Data',['Moth',num2str(examp_moth),'_MIdata.mat']))
 fields = fieldnames(time_data);
-mis = MI_KSG_subsampling_multispike(time_data.(fields{examp_muscle}), Tz_WSd, knn, (1:10));
+mis = MI_KSG_subsampling_multispike(time_data.(fields{examp_muscle}), Tz_WSd, knn, (1:nsubset));
 mi_sd = findMI_KSG_stddev(mis, size(time_data.(fields{examp_muscle}), 1), false);
 meanMI = mean(MI{examp_moth, examp_muscle}, 2);
 
-figure('outerposition', [440 366 967 350])
+figure('outerposition', [440 366 967 300])
 t = tiledlayout(2,3);
 %--- Original method
 precision_ind = find(meanMI < ((meanMI(1) - mi_sd)), 1);
@@ -101,7 +104,9 @@ if savefigs
 end
 
 
-% Precision values
+%% Precision values for all data
+min_peak_dist = 5;
+
 % Original method
 precision = zeros(nmoths, nmuscles);
 deriv_precision = zeros(nmoths, nmuscles);
@@ -114,7 +119,7 @@ for i = 1:nmoths
     for j = 1:nmuscles
         meanMI = mean(MI{i,j}, 2);
         % STD method
-        mis = MI_KSG_subsampling_multispike(time_data.(fields{j}), Tz_WSd, knn, (1:10));
+        mis = MI_KSG_subsampling_multispike(time_data.(fields{j}), Tz_WSd, knn, (1:nsubset));
         mi_sd = findMI_KSG_stddev(mis, size(time_data.(fields{j}), 1), false);
         precision_ind = find(meanMI < ((MI{i,j}(1,1) - mi_sd)), 1);
         precision(i,j) = noise(precision_ind);

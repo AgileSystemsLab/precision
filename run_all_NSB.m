@@ -2,7 +2,7 @@
 % Run NSB method on all data in standard way
 
 addpath('nsb-entropy-code')
-numoftorquebins = 6;%maximum number of torque bins
+numoftorquebins = 5;%maximum number of torque bins
 numofspikingbins = 70;%maximum number of word bins
 numofmoths = 7;
 

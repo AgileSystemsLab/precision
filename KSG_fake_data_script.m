@@ -2,7 +2,6 @@ rng('shuffle')
 % Controls
 do_long_runs_real_dataset = false;
 do_long_runs_synth_dataset = false;
-do_threshold_finding = false;
 do_method_comparison = true;
 
 % Main constants
@@ -14,7 +13,7 @@ repeats = 150;
 prec_levels = 1:0.5:4;
 n = length(prec_levels);
 % STD method
-nsubsets = 6; % how many subsets to split data into to estimate STD at zero noise
+nsubsets = 12; % how many subsets to split data into to estimate STD at zero noise
 % Derivative method 
 min_peak_height = 0.23535;
 min_peak_dist = 10;
@@ -99,112 +98,12 @@ if do_long_runs_synth_dataset
         'noise', 'repeats', 'knn', 'corr', 'repeats_at_corr', 'num_points')
 end
 
-%% Find optimal derivative threshold
-if do_threshold_finding
-    load('KSG_sim_real_data_fixed_precision.mat')
-    load('KSG_sim_synthetic_data_fixed_precision.mat')
-    thresh_scale = linspace(0.2, 0.7, 100);
-    min_peak_dist_vec = [5, 10, 20, 30];
-    %------ Real dataset
-    err = zeros(size(thresh_scale));
-    figure
-    hold on
-    cols = copper(length(min_peak_dist_vec));
-    for jj = 1:length(min_peak_dist_vec)
-        min_peak_dist = min_peak_dist_vec(jj);
-        % Loop over different derivative thresholds
-        for ii = 1:length(thresh_scale)
-            min_peak_height = thresh_scale(ii);
-            deriv_precision = cell(nmoths, nmuscles);
-            deriv_precision(:) = {nan(1, n)};
-            for i = 1:nmoths
-                for j = 1:nmuscles
-                    for k = 1:n
-                        meanMI = mean(MI_disc{i,j,k}, 2);
-                        meanMI(1) = meanMI(2); 
-                        pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-                        grad = conv(pad, -1 * g(:,2), 'same'); 
-                        grad = grad(sg_window+1:end-sg_window);
-                        dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-                        dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-                        dgrad = dgrad(sg_window+1:end-sg_window);
-                        [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-                        if isempty(inds)
-                            [~,ind] = min(dgrad);
-                            deriv_precision{i,j}(k) = noise(ind);
-                        else
-                            deriv_precision{i,j}(k) = noise(inds(1));
-                        end
-                    end
-                end
-            end
-            err(ii) = sqrt(sum(cellfun(@(x) sum((x - prec_levels).^2), deriv_precision), 'all'));
-        end
-        % Real data plot 
-        plot(thresh_scale, err, 'color', cols(jj,:))
-        [~,ind] = min(err);
-        plot(thresh_scale(ind), err(ind), 'r.', 'markersize', 25)
-        text(0.35, 0.4, ['Optimal threshold = ', num2str(thresh_scale(ind))], 'units', 'normalized')
-    end
-    title('Real dataset with controlled precision')
-    xlabel('Derivative threshold')
-    ylabel('Sum of squared errors')
-    exportgraphics(gcf,fullfile('figures','threshold_finding_realdataset.pdf'),'ContentType','vector')
-
-    %------ Synthetic dataset
-    err = zeros(size(thresh_scale));
-    figure
-    hold on
-    cols = copper(length(min_peak_dist_vec));
-    for jj = 1:length(min_peak_dist_vec)
-        min_peak_dist = min_peak_dist_vec(jj);
-        % Loop over different derivative thresholds
-        for ii = 1:length(thresh_scale)
-            min_peak_height = thresh_scale(ii);
-            synth_precision = zeros(ncorr, repeats_at_corr, n);
-            for i = 1:ncorr
-                for j = 1:repeats_at_corr
-                    for k = 1:n
-                        meanMI = mean(MI_synth{i,j,k}, 2);
-                        meanMI(1) = meanMI(2); 
-                        pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-                        grad = conv(pad, -1 * g(:,2), 'same'); 
-                        grad = grad(sg_window+1:end-sg_window);
-                        dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-                        dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-                        dgrad = dgrad(sg_window+1:end-sg_window);
-                        [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-                        if isempty(inds)
-                            [~,ind] = min(dgrad);
-                            synth_precision(i,j,k) = noise(ind);
-                        else
-                            synth_precision(i,j,k) = noise(inds(1));
-                        end
-                    end
-                end
-            end
-            synth_precision = reshape(synth_precision, [ncorr*repeats_at_corr, n]);
-        
-            err(ii) = sqrt(sum((synth_precision-prec_levels).^2, 'all'));
-        end
-        % Synthetic data plot
-        plot(thresh_scale, err, 'color', cols(jj,:))
-        [~,ind] = min(err);
-        plot(thresh_scale(ind), err(ind), 'r.', 'markersize', 25)
-        text(0.35, 0.4, ['Optimal threshold = ', num2str(thresh_scale(ind))], 'units', 'normalized')
-    end
-    title('Synthetic dataset with controlled precision')
-    xlabel('Derivative threshold')
-    ylabel('Sum of squared errors')
-%     exportgraphics(gcf,fullfile('figures','threshold_finding_synthdataset.pdf'),'ContentType','vector')
-end
-
 %% Methods comparison 
 % (really a companion to KSG_precision_comparison but the data for this is
 % generated here so kept in this script for simplicity of running)
 
 if do_method_comparison
-    figure('outerposition', [440 366 1000 425])
+    figure('outerposition', [440 366 1100 425])
     t = tiledlayout(2, 3);
     col = '#4472C4';
     %--- Synthetic data
@@ -402,12 +301,6 @@ end
 % Actually find precision for both real and synthetic fixed datasets
 load('KSG_sim_real_data_fixed_precision.mat')
 load('KSG_sim_synthetic_data_fixed_precision.mat')
-min_peak_height = 0.38;
-min_peak_dist = 5;
-
-sg_ord = 2; % Savitsky-golay filter order
-sg_window = 13; % Savitsky-golay filter window length
-[b,g] = sgolay(sg_ord, sg_window);
 
 muX = 0;         %X mean of the bivariate gaussian
 muY = 0;         %Y mean of the bivariate gaussian
@@ -417,23 +310,20 @@ sigmaY = 2;      %Y standard deviation
 % Real
 precision_real = zeros(nmoths, nmuscles, n);
 for i = 1:nmoths
+    load(fullfile('Data',['Moth',num2str(i),'_MIdata.mat']))
+    fields = fieldnames(time_data);
     for j = 1:nmuscles
         for k = 1:n
             meanMI = mean(MI_disc{i,j,k}, 2);
-            % initial MI drop from 0 noise to some noise throws off derivative estimation, smooth out
-            meanMI(1) = meanMI(2); 
-            pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-            grad = conv(pad, -1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-            dgrad = dgrad(sg_window+1:end-sg_window);
-            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-            if isempty(inds)
-                [~,ind] = min(dgrad);
-                precision_real(i,j,k) = noise(ind);
+            % STD method
+            thisX = round(time_data.(fields{j}) / prec_levels(k)) * prec_levels(k);
+            mis = MI_KSG_subsampling_multispike(thisX, Tz_WSd, knn, (1:nsubsets));
+            mi_sd = findMI_KSG_stddev(mis, size(Tz_WSd,1), false);
+            ind = find(meanMI < (MI_disc{i,j,k}(1,1) - mi_sd), 1);
+            if isempty(ind)
+                precision_real(i,j,k) = nan;
             else
-                precision_real(i,j,k) = noise(inds(1));
+                precision_real(i,j,k) = noise(ind);
             end
         end
     end
@@ -456,24 +346,9 @@ for i = 1:ncorr
             mi_sd = findMI_KSG_stddev(mis, size(synthY,1), false);
             ind = find(meanMI < (MI_synth{i,j,k}(1,1) - mi_sd), 1);
             if isempty(ind)
-                precision_std(i,j,k) = nan;
+                precision_synth(i,j,k) = nan;
             else
-                precision_std(i,j,k) = noise(ind);
-            end
-            meanMI = mean(MI_synth{i,j,k}, 2);
-            meanMI(1) = meanMI(2); 
-            pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-            grad = conv(pad, -1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-            dgrad = dgrad(sg_window+1:end-sg_window);
-            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-            if isempty(inds)
-                [~,ind] = min(dgrad);
                 precision_synth(i,j,k) = noise(ind);
-            else
-                precision_synth(i,j,k) = noise(inds(1));
             end
         end
     end

@@ -2,7 +2,7 @@
 addpath('nsb-entropy-code')
 numoftorquebins = 5;%maximum number of torque bins
 numofspikingbins = 70;%maximum number of word bins
-repeats = 3;
+repeats = 10;
 numofmoths = 7;
 
 %This next section sets up all the different data storage vectors

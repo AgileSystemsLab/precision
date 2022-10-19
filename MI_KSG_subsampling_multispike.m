@@ -47,7 +47,7 @@ function [MIs] = MI_KSG_subsampling_multispike(X, Y, knn, split_sizes, do_plot)
                 % Get indices of data with this many spikes
                 inds = Nspike == k;
                 % Call mutual information estimator
-                if sum(inds) > k && knn < sum(inds)
+                if sum(inds) > k && knn < sum(inds) && sum(inds) > 4
                     mi = MIxnyn_matlab(Xsub(inds, 1:k), Ysub(inds,:), knn);
                 else
                     mi = 0;

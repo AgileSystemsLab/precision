@@ -4,7 +4,7 @@ rng('shuffle')
 nmoths = 7;
 nmuscles = 10;
 nspikebins = 70;
-ntorque = 2;
+ntorque = 4;
 nbiasrepeats = 10;
 prec_levels = 1:0.5:4;
 n = length(prec_levels);
@@ -16,6 +16,9 @@ do_long_runs_synth_dataset = false;
 
 %% Fixed precision on real dataset
 if do_long_runs_real_dataset
+    if isempty(gcp('nocreate'))
+        parpool();
+    end
     disp('---------- Real dataset ----------')
     % Preallocate
     S_nsbword = cell(nmoths, nmuscles, n);
@@ -50,13 +53,13 @@ if do_long_runs_real_dataset
             disp(fields{j}(1:end-7))
             % Create fixed precision real spike data as "fake" X, run precision estimation
             % Loop over precision levels
-            for k = 1:n
+            parfor k = 1:n
                 fakeX{i,j,k} = round(time_data.(fields{j}) / prec_levels(k)) * prec_levels(k);
                 % Run main estimator functions
                 [S_nsbword{i,j,k}, dS_nsbword{i,j,k}, ~, conditionalentropy{i,j,k}, conditionaldS{i,j,k}, ~] = NSB_precision(fakeX{i,j,k}, Tz_WSd, nspikebins, ntorque);
                 [conditionalentropy_bias{i,j,k}, ~, ~, ~] = NSB_precision_bias(fakeX{i,j,k}, Tz_WSd, nspikebins, ntorque, nbiasrepeats);
                 % Calculate other quantities
-                bins{i,j,k} = range(time_data.(fields{j}), 'all') ./ (1:nspikebins);
+                bins{i,j,k} = (max(time_data.(fields{j}),[],'all') - min(time_data.(fields{j}),[],'all')) ./ (1:nspikebins);
                 bias{i,j,k} = mean(conditionalentropy_bias{i,j,k}, 1);
                 MI_real_STD{i,j,k} = sqrt(dS_nsbword{i,j,k}.^2 + conditionaldS{i,j,k}.^2);
                 MI_real{i,j,k} = S_nsbword{i,j,k} - conditionalentropy{i,j,k} - (S_nsbword{i,j,k} - bias{i,j,k});
@@ -76,6 +79,9 @@ num_points = 2500;
 corr = [0.5, 0.6, 0.7, 0.8, 0.9];
 ncorr = length(corr);
 if do_long_runs_synth_dataset
+    if isempty(gcp('nocreate'))
+        parpool();
+    end
     disp('---------- Fully synthetic dataset ----------')
     muX = 0;         %X mean of the bivariate gaussian
     muY = 0;         %Y mean of the bivariate gaussian
@@ -107,17 +113,18 @@ if do_long_runs_synth_dataset
             %generate a correlated X and Y
             x1 = normrnd(0, 1, num_points, 1);
             x2 = normrnd(0, 1, num_points, 1);
-            x3 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* x2;
+            x3 = normrnd(0, 1, num_points, 1);
+            x4 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* [x2, x3];
             synthX = muX + x1 * sigmaX;
-            synthY = muY + x3 * sigmaY;
+            synthY = muY + x4 * sigmaY;
             % Loop over fixed precision levels
-            for k = 1:n
+            parfor k = 1:n
                 synthX_disc = round(synthX / prec_levels(k)) * prec_levels(k);
                 % Run main estimator functions
                 [S_nsbword{i,j,k}, dS_nsbword{i,j,k}, ~, conditionalentropy{i,j,k}, conditionaldS{i,j,k}, ~] = NSB_precision(synthX_disc, synthY, nspikebins, ntorque);
                 [conditionalentropy_bias{i,j,k}, ~, ~, ~] = NSB_precision_bias(synthX_disc, synthY, nspikebins, ntorque, nbiasrepeats);
                 % Calculate other quantities
-                bins{i,j,k} = range(synthX_disc, 'all') ./ (1:nspikebins);
+                bins{i,j,k} = (max(synthX_disc,[],'all') - min(synthX_disc,[],'all'))./ (1:nspikebins);
                 bias{i,j,k} = mean(conditionalentropy_bias{i,j,k}, 1);
                 MI_synth_STD{i,j,k} = sqrt(dS_nsbword{i,j,k}.^2 + conditionaldS{i,j,k}.^2);
                 MI_synth{i,j,k} = S_nsbword{i,j,k} - conditionalentropy{i,j,k} - (S_nsbword{i,j,k} - bias{i,j,k});
@@ -127,7 +134,7 @@ if do_long_runs_synth_dataset
     
     % Save results
     save('NSB_sim_synthetic_data_fixed_precision.mat', ...
-        'S_nsbword', 'dSnsbword', 'conditionalentropy', 'conditionaldS', 'conditionalentropy_bias', ...
+        'S_nsbword', 'dS_nsbword', 'conditionalentropy', 'conditionaldS', 'conditionalentropy_bias', ...
         'MI_synth', 'MI_synth_STD', 'bias', 'bins', ...
         'corr', 'repeats_at_corr', 'num_points')
 end
@@ -135,7 +142,7 @@ end
 
 %% Methods comparison
 load('NSB_sim_real_data_fixed_precision.mat')
-% load('NSB_sim_synthetic_data_fixed_precision.mat')
+load('NSB_sim_synthetic_data_fixed_precision.mat')
 
 
 sg_ord = 2; % Savitsky-golay filter order
@@ -259,63 +266,36 @@ ylabel('Measured precision (ms)')
 
 %% Distributions of precision at specific known levels
 % Actually find precision for both real and synthetic fixed datasets
-load('NSB_sim_real_data_fixed_precision.mat')
-load('NSB_sim_synthetic_data_fixed_precision.mat')
-min_peak_height = 0.2;
-min_peak_dist = 5;
 
-sg_ord = 2; % Savitsky-golay filter order
-sg_window = 13; % Savitsky-golay filter window length
-[b,g] = sgolay(sg_ord, sg_window);
 % Real
-figure
-hold on
-cols = copper(n);
+load('NSB_sim_real_data_fixed_precision.mat')
 precision_real = zeros(nmoths, nmuscles, n);
 for i = 1:nmoths
     for j = 1:nmuscles
         for k = 1:n
-            pad = [nan(1, sg_window), MI_real{i,j,k}, nan(1, sg_window)];
-            grad = conv(pad, -1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-            dgrad = dgrad(sg_window+1:end-sg_window);
-            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-            if isempty(inds)
-                [~,ind] = min(dgrad);
-                precision_real(i,j,k) = noise(ind);
-            else
-                precision_real(i,j,k) = noise(inds(1));
+            useMI = MI_real{i,j,k};
+            mwind = zeros(1, length(useMI));
+            for ii = 1:length(useMI)
+                mwind(ii) = mean(useMI(ii:end));
             end
+            [~,ind] = max(useMI-mwind);
+            precision_real(i,j,k) = bins{i,j,k}(ind);
         end
     end
 end
 % Synthetic
+load('NSB_sim_synthetic_data_fixed_precision.mat')
 precision_synth = zeros(ncorr, repeats_at_corr, n);
 for i = 1:ncorr
     for j = 1:repeats_at_corr
         for k = 1:n
-            meanMI = mean(MI_synth{i,j,k}, 2);
-            meanMI(1) = meanMI(2); 
-            pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-            grad = conv(pad, -1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            dpad = [nan(1, sg_window), grad, nan(1, sg_window)];
-            dgrad = conv(dpad, -1 * g(:,2), 'same'); 
-            dgrad = dgrad(sg_window+1:end-sg_window);
-            [~,inds] = findpeaks(dgrad/min(dgrad), 'MinPeakHeight', min_peak_height, 'MinPeakDistance', min_peak_dist);
-            if isempty(inds)
-                [~,ind] = min(dgrad);
-                precision_synth(i,j,k) = noise(ind);
-            else
-                precision_synth(i,j,k) = noise(inds(1));
+            useMI = MI_synth{i,j,k};
+            mwind = zeros(1, length(useMI));
+            for ii = 1:length(useMI)
+                mwind(ii) = mean(useMI(ii:end));
             end
-            plot(dgrad/min(dgrad), 'color', cols(k,:))
-            if (i == 1) && (j == 1)
-                [~,ind] = min(abs(prec_levels(k) - noise));
-                xline(ind, 'color', cols(k,:))
-            end
+            [~,ind] = max(useMI-mwind);
+            precision_synth(i,j,k) = bins{i,j,k}(ind);
         end
     end
 end
@@ -337,7 +317,7 @@ errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
 ylim([0, 5])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('KSG, Real dataset')
+title('NSB, Real dataset')
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
 % Synthetic dataset plot
@@ -349,6 +329,6 @@ errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ..
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
 ylim([0, 5])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('KSG, Synthetic dataset')
+title('NSB, Synthetic dataset')
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
