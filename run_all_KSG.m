@@ -6,7 +6,8 @@ noise = [0, logspace(log10(0.05), log10(6), 120)];
 repeats = 150;
 
 run_standard = false;
-run_varyk = true;
+run_varyk = false;
+run_getcountinfo = true;
 
 %% Run KSG method on all data in standard way
 if run_standard
@@ -31,9 +32,40 @@ if run_standard
     save('KSG_data.mat', 'MI', 'noise', 'repeats', 'knn')
 end
 
+%% Get spike count information
+if run_getcountinfo
+    knn = 4;
+    MI_count = zeros(nmoths, nmuscles);
+    % If KSG tools not on path, add to path 
+    % (dumb and assumes folder within dir of this function)
+    % (Checks entire path, could be way more efficient but ¯\_(ツ)_/¯ )
+    path_cell = regexp(path, pathsep, 'split');
+    function_dir = fileparts(mfilename('fullpath'));
+    if ~any(strcmpi(fullfile(function_dir, 'ContinuousMIEstimation'), path_cell))
+        addpath(fullfile(function_dir, 'ContinuousMIEstimation'))
+    end
+    % Loop over moths
+    for i = 1:nmoths
+        % Load data
+        load(fullfile('Data',['Moth',num2str(i),'_MIdata.mat']))
+        fields = fieldnames(time_data);
+        disp(['Moth ',num2str(i)])
+        % Loop over muscles
+        for j = 1:length(fields)
+            disp(fields{j}(1:end-7))
+            % Get count information 
+            MI_count(i,j) = MIxnyn_matlab(sum(~isnan(time_data.(fields{j})),2), Tz_WSd, knn);
+        end
+    end
+    % Save results
+    save('KSG_data_count.mat', 'MI_count', 'knn')
+end
+
+
+
 %% Run KSG method on all data while varying k
 if run_varyk
-    knn_vec = [2,3,4,5];
+    knn_vec = [2,3,4,5,6,7];
     % Preallocate
     MI_varyk = cell(nmoths, nmuscles, length(knn_vec));
     % Loop over levels of k

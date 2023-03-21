@@ -12,6 +12,7 @@ n = length(prec_levels);
 
 do_long_runs_real_dataset = false;
 do_long_runs_synth_dataset = false;
+do_methods_comparison = false;
 
 
 %% Fixed precision on real dataset
@@ -140,128 +141,154 @@ if do_long_runs_synth_dataset
 end
 
 
-%% Methods comparison
+%%
+% load('NSB_sim_real_data_fixed_precision.mat')
 load('NSB_sim_real_data_fixed_precision.mat')
-load('NSB_sim_synthetic_data_fixed_precision.mat')
+i=5;j=4;
 
-
-sg_ord = 2; % Savitsky-golay filter order
-sg_window = 13; % Savitsky-golay filter window length
-[b,g] = sgolay(sg_ord, sg_window);
-min_deriv_thresh = 0.2;
-deriv_thresh = 0.04;
-
+figure
 cols = copper(n);
-pi = 5; pj = 9;
+ax1 = subplot(2,1,1);
+hold on
+ax2 = subplot(2,1,2);
+hold on
+for k = 1:n
+    MI = MI_real{i,j,k};
+    plot(ax1, bins{i,j,k}, MI + (S_nsbword{i,j,k} - bias{i,j,k}), 'color', cols(k,:))
+    plot(ax2, bins{i,j,k}, MI, 'color', cols(k,:))
 
-precision_max = nan(nmoths, nmuscles, n);
-precision_deriv = nan(nmoths, nmuscles, n);
-precision_other = nan(nmoths, nmuscles, n);
-for i = 1:nmoths
-    for j = 1:nmuscles
-        if (i == pi) && (j == pj)
-            figure
-            ax1 = subplot(2, 1, 1);
-            hold on
-            ax2 = subplot(2, 1, 2);
-            hold on
-        end
-        for k = 1:n
-            % Max value method
-            useMI = S_nsbword{i,j,k} - conditionalentropy{i,j,k};
-            ind = find(useMI(1:end-1) == useMI(2:end), 1);
-            precision_max(i,j,k) = bins{i,j,k}(ind);
-%             [~,ind] = max(S_nsbword{i,j,k} - conditionalentropy{i,j,k});
-%             precision_max(i,j,k) = bins{i,j,k}(ind);
-            % Derivative zero-crossing method
-            pad = [nan(1, sg_window), MI_real{i,j,k}, nan(1, sg_window)];
-            grad = conv(pad, 1 * g(:,2), 'same'); 
-            grad = grad(sg_window+1:end-sg_window);
-            inds = find((sign(grad(2:end))==-1) & (sign(grad(1:end-1))==1));
-%             inds = find(grad/min(grad) > min_deriv_thresh);
-            if isempty(inds)
-                precision_deriv(i,j,k) = nan;
-            else
-                precision_deriv(i,j,k) = bins{i,j,k}(inds(1));
-            end
-            % Other method
-            useMI = MI_real{i,j,k};
-            mwind = zeros(1, length(MI_real{i,j,k}));
-            for ii = 1:length(MI_real{i,j,k})
-%                 mwind(ii) = mean(MI_real{i,j,k}(ii:end));
-                mwind(ii) = mean(useMI(ii:end));
-            end
-%             [~,ind] = max(MI_real{i,j,k}-mwind);
-            [~,ind] = max(useMI-mwind);
-            precision_other(i,j,k) = bins{i,j,k}(ind);
-
-            if (i == pi) && (j == pj)
-                plot(ax1, bins{i,j,k}, S_nsbword{i,j,k} - conditionalentropy{i,j,k}, 'color', cols(k,:))
-%                 plot(ax1, bins{i,j,k}(ind), useMI(ind), 'r.')
-                plot(ax2, bins{i,j,k}, MI_real{i,j,k}, 'color', cols(k,:))
-            end
-        end
+    compvalue = mean(MI(end-10:end));
+    compstd = std(MI(end-10:end));
+    maxval = max(MI(MI>=compvalue));
+    % Peak case, find max value location
+    if maxval/compvalue >= 1.2
+        [~,ind] = max(MI);
+    % Plateau case, find farthest right value near compvalue
+    else
+        ind = find(MI >= (compvalue-2*compstd), 1);
     end
+    
+    plot(ax2, bins{i,j,k}(ind), MI(ind), 'r.')
 end
 set(ax1, 'Xscale', 'log')
 set(ax2, 'Xscale', 'log')
-% %%
-% i=2;j=2;k=5;
-% mwind = zeros(1, length(MI_real{i,j,k}));
-% for ii = 1:length(MI_real{i,j,k})
-%     mwind(ii) = mean(MI_real{i,j,k}(ii:end));
-% end
-% 
-% figure
-% hold on
-% % plot(MI_real{i,j,k})
-% plot(MI_real{i,j,k}-mwind)
-% % plot(mwind)
 
-% Reshape for plotting
-precision_max = reshape(precision_max, [nmoths*nmuscles, n]);
-precision_deriv = reshape(precision_deriv, [nmoths*nmuscles, n]);
-precision_other = reshape(precision_other, [nmoths*nmuscles, n]);
-% Plot
-figure('outerposition', [440 366 967 300])
-t = tiledlayout(1, 3);
-col = '#4472C4';
-% Max value method
-nexttile()
-hold on
-errorbar(prec_levels, mean(precision_max, 1, 'omitnan'), std(precision_max, 1, 'omitnan'), 'o', ...
-    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
-    'LineWidth', 1, 'CapSize', 13)
-xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
-plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('Max Value Method')
-xlabel('Actual precision (ms)')
-ylabel('Measured precision (ms)')
-% Derivative zero-crossing method
-nexttile()
-hold on
-errorbar(prec_levels, mean(precision_deriv, 1, 'omitnan'), std(precision_deriv, 1, 'omitnan'), 'o', ...
-    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
-    'LineWidth', 1, 'CapSize', 13)
-xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
-plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('Deriv zero-cross Method')
-xlabel('Actual precision (ms)')
-ylabel('Measured precision (ms)')
-% other method
-nexttile()
-hold on
-errorbar(prec_levels, mean(precision_other, 1, 'omitnan'), std(precision_other, 1, 'omitnan'), 'o', ...
-    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
-    'LineWidth', 1, 'CapSize', 13)
-xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
-plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('Other Method')
-xlabel('Actual precision (ms)')
-ylabel('Measured precision (ms)')
+
+
+%% Methods comparison
+if do_methods_comparison
+    load('NSB_sim_real_data_fixed_precision.mat')
+    % load('NSB_sim_synthetic_data_fixed_precision.mat')
+    
+    
+    sg_ord = 2; % Savitsky-golay filter order
+    sg_window = 13; % Savitsky-golay filter window length
+    [b,g] = sgolay(sg_ord, sg_window);
+    min_deriv_thresh = 0.2;
+    deriv_thresh = 0.04;
+    
+    cols = copper(n);
+    pi = 5; pj = 9;
+    
+    precision_max = nan(nmoths, nmuscles, n);
+    precision_two = nan(nmoths, nmuscles, n);
+    precision_other = nan(nmoths, nmuscles, n);
+    for i = 1:nmoths
+        for j = 1:nmuscles
+            if (i == pi) && (j == pj)
+                figure
+                ax1 = subplot(2, 1, 1);
+                hold on
+                ax2 = subplot(2, 1, 2);
+                hold on
+            end
+            for k = 1:n
+                % Max value method
+    %             useMI = S_nsbword{i,j,k} - conditionalentropy{i,j,k};
+                useMI = MI_real{i,j,k};
+                [~,ind] = max(useMI);
+                precision_max(i,j,k) = bins{i,j,k}(ind);
+    
+                % Two-approach method
+                useMI = MI_real{i,j,k} + (S_nsbword{i,j,k} - bias{i,j,k});
+                compvalue = mean(useMI(end-10:end));
+                compstd = std(useMI(end-10:end));
+                maxval = max(useMI(useMI>=compvalue));
+                % Peak case, find max value location
+                if maxval/compvalue >= 1.2
+                    [~,ind] = max(useMI);
+                % Plateau case, find farthest right value near compvalue
+                else
+                    ind = find(useMI >= (compvalue-2*compstd), 1);
+                end
+                precision_two(i,j,k) = bins{i,j,k}(ind);
+    
+                % Other method
+                useMI = MI_real{i,j,k};
+                mwind = zeros(1, length(useMI));
+                for ii = 1:length(MI_real{i,j,k})
+    %                 mwind(ii) = mean(MI_real{i,j,k}(ii:end));
+                    mwind(ii) = mean(useMI(ii:end));
+                end
+    %             [~,ind] = max(MI_real{i,j,k}-mwind);
+                [~,ind] = max(useMI-mwind);
+                precision_other(i,j,k) = bins{i,j,k}(ind);
+    
+                if (i == pi) && (j == pj)
+                    plot(ax1, bins{i,j,k}, S_nsbword{i,j,k} - conditionalentropy{i,j,k}, 'color', cols(k,:))
+                    plot(ax2, bins{i,j,k}, MI_real{i,j,k}, 'color', cols(k,:))
+                end
+            end
+        end
+    end
+    set(ax1, 'Xscale', 'log')
+    set(ax2, 'Xscale', 'log')
+    
+    % Reshape for plotting
+    precision_max = reshape(precision_max, [nmoths*nmuscles, n]);
+    precision_two = reshape(precision_two, [nmoths*nmuscles, n]);
+    precision_other = reshape(precision_other, [nmoths*nmuscles, n]);
+    % Plot
+    figure('outerposition', [440 366 967 300])
+    t = tiledlayout(1, 3);
+    col = '#4472C4';
+    % Max value method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_max, 1, 'omitnan'), std(precision_max, 1, 'omitnan'), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    % ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    title('Max Value Method')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
+    % Two-approach method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_two, 1, 'omitnan'), std(precision_two, 1, 'omitnan'), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    % ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    title('Two approach method')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
+    % other method
+    nexttile()
+    hold on
+    errorbar(prec_levels, mean(precision_other, 1, 'omitnan'), std(precision_other, 1, 'omitnan'), 'o', ...
+        'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+        'LineWidth', 1, 'CapSize', 13)
+    xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
+    % ylim([0, 5])
+    plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
+    title('Other Method')
+    xlabel('Actual precision (ms)')
+    ylabel('Measured precision (ms)')
+end
 
 
 %% Distributions of precision at specific known levels
@@ -270,65 +297,119 @@ ylabel('Measured precision (ms)')
 % Real
 load('NSB_sim_real_data_fixed_precision.mat')
 precision_real = zeros(nmoths, nmuscles, n);
+precision_real_biascorrect = zeros(nmoths, nmuscles, n);
 for i = 1:nmoths
     for j = 1:nmuscles
         for k = 1:n
-            useMI = MI_real{i,j,k};
-            mwind = zeros(1, length(useMI));
-            for ii = 1:length(useMI)
-                mwind(ii) = mean(useMI(ii:end));
+            % Without bias correction
+            useMI = MI_real{i,j,k} + (S_nsbword{i,j,k} - bias{i,j,k});
+            compvalue = mean(useMI(end-10:end));
+            compstd = std(useMI(end-10:end));
+            maxval = max(useMI(useMI>=compvalue));
+            % Peak case, find max value location
+            if maxval/compvalue >= 1.2
+                [~,ind] = max(useMI);
+            % Plateau case, find farthest right value near compvalue
+            else
+                ind = find(useMI >= (compvalue-2*compstd), 1);
             end
-            [~,ind] = max(useMI-mwind);
             precision_real(i,j,k) = bins{i,j,k}(ind);
+            % With bias correction
+            useMI = MI_real{i,j,k};
+            compvalue = mean(useMI(end-10:end));
+            compstd = std(useMI(end-10:end));
+            maxval = max(useMI(useMI>=compvalue));
+            % Peak case, find max value location
+            if maxval/compvalue >= 1.2
+                [~,ind] = max(useMI);
+            % Plateau case, find farthest right value near compvalue
+            else
+                ind = find(useMI >= (compvalue-2*compstd), 1);
+            end
+            precision_real_biascorrect(i,j,k) = bins{i,j,k}(ind);
         end
     end
 end
 % Synthetic
 load('NSB_sim_synthetic_data_fixed_precision.mat')
 precision_synth = zeros(ncorr, repeats_at_corr, n);
+precision_synth_biascorrect = zeros(ncorr, repeats_at_corr, n);
 for i = 1:ncorr
     for j = 1:repeats_at_corr
         for k = 1:n
-            useMI = MI_synth{i,j,k};
-            mwind = zeros(1, length(useMI));
-            for ii = 1:length(useMI)
-                mwind(ii) = mean(useMI(ii:end));
+            % Without bias correction
+            useMI = MI_synth{i,j,k} + (S_nsbword{i,j,k} - bias{i,j,k});
+            compvalue = mean(useMI(end-10:end));
+            compstd = std(useMI(end-10:end));
+            maxval = max(useMI(useMI>=compvalue));
+            % Peak case, find max value location
+            if maxval/compvalue >= 1.2
+                [~,ind] = max(useMI);
+            % Plateau case, find farthest right value near compvalue
+            else
+                ind = find(useMI >= (compvalue-2*compstd), 1);
             end
-            [~,ind] = max(useMI-mwind);
             precision_synth(i,j,k) = bins{i,j,k}(ind);
+            % With bias correction
+            useMI = MI_synth{i,j,k};
+            compvalue = mean(useMI(end-10:end));
+            compstd = std(useMI(end-10:end));
+            maxval = max(useMI(useMI>=compvalue));
+            % Peak case, find max value location
+            if maxval/compvalue >= 1.2
+                [~,ind] = max(useMI);
+            % Plateau case, find farthest right value near compvalue
+            else
+                ind = find(useMI >= (compvalue-2*compstd), 1);
+            end
+            precision_synth_biascorrect(i,j,k) = bins{i,j,k}(ind);
         end
     end
 end
 % Reshape both for ease of plotting
 precision_real = reshape(precision_real, [nmoths*nmuscles, n]);
+precision_real_biascorrect = reshape(precision_real_biascorrect, [nmoths*nmuscles, n]);
 precision_synth = reshape(precision_synth, [ncorr*repeats_at_corr, n]);
+precision_synth_biascorrect = reshape(precision_synth_biascorrect, [ncorr*repeats_at_corr, n]);
 
 
-figure('OuterPosition', [1007, 234, 280, 610])
+figure('OuterPosition', [1007, 234, 450, 610])
 col = '#4472C4';
+biascol = '#913634';
 t = tiledlayout(2, 1);
 
 % Real dataset plot
 nexttile()
 hold on
-errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
-    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+% errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
+%     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+%     'LineWidth', 1, 'CapSize', 13)
+errorbar(prec_levels, mean(precision_real_biascorrect, 1), std(precision_real_biascorrect, 1), 'o', ...
+    'color', biascol, 'Marker', 'o', 'MarkerEdgeColor', biascol, 'MarkerFaceColor', biascol, ...
     'LineWidth', 1, 'CapSize', 13)
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
+ylim([0, 10])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('NSB, Real dataset')
+title('NSB, Real dataset', 'FontSize', 16)
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
+% hleg1 = legend({'Regular', 'Bias corrected', ''}, 'location', 'northwest');
+% set(hleg1.BoxFace, 'ColorType','truecoloralpha', 'ColorData',uint8(255*[1;1;1;.8]));
 % Synthetic dataset plot
 nexttile()
 hold on
-errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ...
-    'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+% errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ...
+%     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
+%     'LineWidth', 1, 'CapSize', 13)
+errorbar(prec_levels, mean(precision_synth_biascorrect, 1), std(precision_synth_biascorrect, 1), 'o', ...
+    'color', biascol, 'Marker', 'o', 'MarkerEdgeColor', biascol, 'MarkerFaceColor', biascol, ...
     'LineWidth', 1, 'CapSize', 13)
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
+ylim([0, 6])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('NSB, Synthetic dataset')
+title('NSB, Synthetic dataset', 'FontSize', 16)
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
+% hleg2 = legend({'Regular', 'Bias corrected', ''}, 'location', 'northwest');
+% set(hleg2.BoxFace, 'ColorType','truecoloralpha', 'ColorData',uint8(255*[1;1;1;.8]));
+exportgraphics(gcf,fullfile('figures','NSB_precision_methods_simulations.pdf'),'ContentType','vector')

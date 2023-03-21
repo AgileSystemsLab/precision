@@ -2,7 +2,7 @@ rng('shuffle')
 % Controls
 do_long_runs_real_dataset = false;
 do_long_runs_synth_dataset = false;
-do_method_comparison = true;
+do_method_comparison = false;
 
 % Main constants
 nmoths = 7;
@@ -24,8 +24,8 @@ sg_window = 11; % Savitsky-golay filter window length
 s = 5; % how many samples on each side to fit line to
 x = log10(noise);
 
-% Suppress findpeaks warning about minpeakheight being too high (part of my
-% method already deals with these cases, so warning does nothing for me)
+% Suppress findpeaks warning about minpeakheight being too high (part of
+% deriv method deals with these cases, so warning does nothing for me)
 warning('off', 'signal:findpeaks:largeMinPeakHeight');
 
 
@@ -358,7 +358,7 @@ precision_real = reshape(precision_real, [nmoths*nmuscles, n]);
 precision_synth = reshape(precision_synth, [ncorr*repeats_at_corr, n]);
 
 
-figure('OuterPosition', [1007, 234, 280, 610])
+figure('OuterPosition', [1007, 234, 450, 610])
 col = '#4472C4';
 t = tiledlayout(2, 1);
 
@@ -369,9 +369,9 @@ errorbar(prec_levels, mean(precision_real, 1), std(precision_real, 1), 'o', ...
     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
     'LineWidth', 1, 'CapSize', 13)
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
+ylim([0, 10])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('KSG, Real dataset')
+title('KSG, Real dataset', 'FontSize', 16)
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
 % Synthetic dataset plot
@@ -381,44 +381,14 @@ errorbar(prec_levels, mean(precision_synth, 1), std(precision_synth, 1), 'o', ..
     'color', col, 'Marker', 'o', 'MarkerEdgeColor', col, 'MarkerFaceColor', col, ...
     'LineWidth', 1, 'CapSize', 13)
 xlim([prec_levels(1)-0.25, prec_levels(end)+0.25])
-ylim([0, 5])
+ylim([0, 6])
 plot(get(gca,'xlim'), get(gca,'xlim'), 'k-')
-title('KSG, Synthetic dataset')
+title('KSG, Synthetic dataset', 'FontSize', 16)
 xlabel('Actual precision (ms)')
 ylabel('Measured precision (ms)')
 
 exportgraphics(gcf,fullfile('figures','simulations_KSG.pdf'),'ContentType','vector')
 
-%% Example of MI vs noise at different 
-
-% load('KSG_data.mat')
-% deriv_thresh_scale = 0.38687;
-% 
-% i = 3; % moth
-% j = 3; % muscle
-% 
-% figure 
-% hold on
-% cols = copper(n);
-% mseb(log10(noise), mean(MI{i,j}, 2), std(MI{i,j}, 0, 2)');
-% for k = 1:n
-%     meanMI = mean(MI_disc{i,j,k}, 2);
-%     mseb(log10(noise), meanMI, std(MI_disc{i,j,k}, 0, 2)', ...
-%         struct('col', {{cols(k,:)}}), 1)
-%     % Get precision (I know it's stored somewhere but this is faster to write)
-%     pad = [nan(1, sg_window), meanMI', nan(1, sg_window)];
-%     grad = conv(pad, -1 * g(:,2), 'same'); 
-%     grad = grad(sg_window+1:end-sg_window);
-%     deriv_thresh = min(grad) * deriv_thresh_scale;
-%     ind = find(grad < deriv_thresh, 1);
-%     plot(log10(noise(ind)), meanMI(ind), '.', 'color', cols(k,:), 'MarkerSize', 25)
-%     plot(log10(noise(ind)), meanMI(ind), 'k.', 'MarkerSize', 15)
-%     if k == 1
-%         bob = grad;
-%         jim = meanMI;
-%     end
-% 
-% end
 
 
 %% Example of synthetic data plot
@@ -430,28 +400,30 @@ sigmaY = 2;      %Y standard deviation
 %generate a correlated X and Y
 x1 = normrnd(0, 1, num_points, 1);
 x2 = normrnd(0, 1, num_points, 1);
+x3 = normrnd(0, 1, num_points, 1);
 
-figure('outerposition', [841, 455, 700, 350])
+figure('outerposition', [841, 455, 500, 350])
 ax = gobjects(1, 2);
 cols = parula(ncorr+1);
-hspacing = 0.15;
+hspacing = 0.05;
 
 ax(1) = subaxis(1, 2 , 1, 'SpacingHoriz', hspacing);
 ax(1).Box = 'off';
 hold on
 for i = 1:ncorr
-    x3 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* x2;
+    x4 = corr(i) .* x1 + (1 - corr(i)^2)^.5 .* [x2, x3];
     synthX = muX + x1 * sigmaX;
-    synthY = muY + x3 * sigmaY;
+    synthY = muY + x4 * sigmaY;
 
-    plot(synthX, synthY, '.', 'color', cols(i,:))
+    plot(synthX, synthY(:,1), '.', 'color', cols(i,:))
 end
-xlabel('X', 'FontWeight', 'bold', 'FontSize', 12)
-ylabel('Y', 'FontWeight', 'bold', 'FontSize', 12)
+xlabel('X (ms)', 'FontSize', 12)
+ylabel('Y_1', 'FontSize', 12)
 set(get(gca, 'Ylabel'), 'Rotation', 0)
 xlim([-7, 7])
-[~,leg] = legend(arrayfun(@(x) ['\rho = ',num2str(x)], corr, 'UniformOutput', false), 'location', 'southeast');
-set(findobj(leg, '-property', 'MarkerSize'), 'MarkerSize', 13)
+[~,leg] = legend(arrayfun(@(x) ['\rho = ',num2str(x)], corr, 'UniformOutput', false), ...
+    'location', 'southeast', 'FontSize', 15);
+set(findobj(leg, '-property', 'MarkerSize'), 'MarkerSize', 16)
 
 ax(2) = subaxis(1, 2 , 2, 'SpacingHoriz', hspacing);
 ax(2).Box = 'off';
@@ -464,9 +436,50 @@ for i = 1:ncorr
     synthX_disc = round(synthX / 1) * 1;
     plot(synthX_disc, synthY, '.', 'color', cols(i,:))
 end
-xlabel('Precision-fixed X', 'FontWeight', 'bold', 'FontSize', 12)
-ylabel('Y', 'FontWeight', 'bold', 'FontSize', 12)
+xlabel('Precision-fixed X (ms)', 'FontSize', 12)
+ylabel('Y_1', 'FontSize', 12)
 set(get(gca, 'Ylabel'), 'Rotation', 0)
+set(get(gca, 'Ylabel'))
+for i = 1:2
+    set(ax(i), 'FontSize', 15)
+    set(ax(i), 'YTickLabel', [])
+    ax(i).YLabel.Position = ax(1).YLabel.Position - [0.35 0 0];
+end
 xlim([-7, 7])
 
 exportgraphics(gcf,fullfile('figures','simulations_example_gaussian.pdf'),'ContentType','vector')
+
+
+%% Example of real data plot
+i = 1;
+
+load(fullfile('SubmittedDataallmusclesAllareTzWsd', ['Moth', num2str(i), '_MIdata.mat']))
+figure('outerposition', [841, 455, 500, 350])
+ax = gobjects(1, 2);
+hspacing = 0.08;
+ax(1) = subaxis(1, 2 , 1, 'SpacingHoriz', hspacing);
+h = plot(time_data.LAXstrokes, Tz_WSd(:,1), '.');
+xlabel('S (ms)', 'FontSize', 12)
+ylabel('PC_1 (a.u.)', 'FontSize', 12)
+hCopy = copyobj(h, ax(1));
+for i = 1:length(hCopy)
+    set(hCopy(i),'XData', NaN', 'YData', NaN)
+    hCopy(i).MarkerSize = 13; 
+end
+leg = legend(hCopy, {'1', '2', '3', '4'}, 'location', 'southeast');
+title(leg, 'Spike #')
+ax(1).Box = 'off';
+set(ax(1), 'YTickLabel', [])
+set(ax(1), 'FontSize', 15)
+% set(findobj(leg, '-property', 'MarkerSize'), 'MarkerSize', 13)
+
+ax(2) = subaxis(1, 2 , 2, 'SpacingHoriz', hspacing);
+synthX = round(time_data.LAXstrokes / 2) * 2;
+plot(synthX, Tz_WSd(:,1), '.')
+xlabel('Precision-fixed S (ms)', 'FontSize', 12)
+ylabel('PC_1 (a.u.)', 'FontSize', 12)
+ax(2).Box = 'off';
+set(ax(2), 'YTickLabel', [])
+set(ax(2), 'FontSize', 15)
+
+exportgraphics(gcf, fullfile('figures','simulations_example_real.pdf'),'ContentType','vector')
